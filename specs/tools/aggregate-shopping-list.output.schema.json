@@ -1,0 +1,94 @@
+{
+  "$id": "aggregate-shopping-list.output.schema.json",
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "aggregate_shopping_list 输出",
+  "type": "object",
+  "required": ["groups", "warnings", "unresolved"],
+  "properties": {
+    "groups": {
+      "type": "array",
+      "description": "按食材类目分组：蔬菜、肉蛋奶、水产、主食粮油、调味香料等",
+      "items": {
+        "type": "object",
+        "required": ["category", "items"],
+        "properties": {
+          "category": { "type": "string" },
+          "items": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": ["ingredient_id", "name", "total_required", "to_buy", "used_in"],
+              "properties": {
+                "ingredient_id": { "type": ["string", "null"], "description": "未能标准化时为 null" },
+                "name": { "type": "string" },
+                "total_required": {
+                  "type": "object",
+                  "required": ["quantity", "unit"],
+                  "properties": {
+                    "quantity": { "type": ["number", "null"] },
+                    "unit": { "type": ["string", "null"] }
+                  },
+                  "additionalProperties": false
+                },
+                "owned": {
+                  "type": "object",
+                  "required": ["quantity", "unit"],
+                  "properties": {
+                    "quantity": { "type": "number" },
+                    "unit": { "type": "string" }
+                  },
+                  "additionalProperties": false
+                },
+                "to_buy": {
+                  "type": "object",
+                  "required": ["quantity", "unit"],
+                  "properties": {
+                    "quantity": { "type": ["number", "null"] },
+                    "unit": { "type": ["string", "null"] }
+                  },
+                  "additionalProperties": false
+                },
+                "used_in": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "required": ["recipe_id", "version", "servings", "quantity", "unit"],
+                    "properties": {
+                      "recipe_id": { "$ref": "https://what2eat.dev/schemas/common.schema.json#/$defs/recipe_id" },
+                      "version": { "type": "integer" },
+                      "servings": { "type": "number" },
+                      "quantity": { "type": ["number", "null"] },
+                      "unit": { "type": ["string", "null"] },
+                      "date": { "type": "string" }
+                    },
+                    "additionalProperties": false
+                  }
+                }
+              },
+              "additionalProperties": false
+            }
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    "warnings": {
+      "type": "array",
+      "items": { "$ref": "https://what2eat.dev/schemas/common.schema.json#/$defs/warning" }
+    },
+    "unresolved": {
+      "type": "array",
+      "description": "无法解析或读取的输入项及原因",
+      "items": {
+        "type": "object",
+        "required": ["subject", "reason"],
+        "properties": {
+          "subject": { "type": "string" },
+          "reason": { "type": "string" }
+        },
+        "additionalProperties": false
+      }
+    }
+  },
+  "additionalProperties": false
+}

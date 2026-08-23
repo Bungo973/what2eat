@@ -1,0 +1,62 @@
+{
+  "$id": "validate-meal-plan.output.schema.json",
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "validate_meal_plan 输出",
+  "type": "object",
+  "required": ["errors", "warnings", "assumptions", "validated_at"],
+  "properties": {
+    "errors": {
+      "type": "array",
+      "description": "必须修正的硬约束冲突；非空时方案不得作为最终可执行结果",
+      "items": {
+        "type": "object",
+        "required": ["code", "message"],
+        "properties": {
+          "code": {
+            "enum": [
+              "MISSING_MEAL",
+              "RECIPE_NOT_FOUND",
+              "VERSION_NOT_FOUND",
+              "RECIPE_NOT_PUBLISHED",
+              "ALLERGEN_CONFLICT",
+              "INGREDIENT_EXCLUDED",
+              "DIETARY_CONFLICT",
+              "EQUIPMENT_UNAVAILABLE",
+              "TIME_EXCEEDED",
+              "BUDGET_EXCEEDED",
+              "DUPLICATE_MEAL_SLOT"
+            ]
+          },
+          "message": { "type": "string" },
+          "date": { "type": "string" },
+          "meal_type": { "type": "string" },
+          "recipe_id": { "type": "string" },
+          "version": { "type": "integer" }
+        },
+        "additionalProperties": false
+      }
+    },
+    "warnings": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["code", "message"],
+        "properties": {
+          "code": {
+            "enum": ["HIGH_REPETITION", "LOW_DIVERSITY", "BUDGET_TIGHT", "STALE_PRICING", "OTHER"]
+          },
+          "message": { "type": "string" },
+          "subject": { "type": "string" }
+        },
+        "additionalProperties": false
+      }
+    },
+    "assumptions": {
+      "type": "array",
+      "description": "因信息不足采用的假设说明",
+      "items": { "type": "string" }
+    },
+    "validated_at": { "$ref": "https://what2eat.dev/schemas/common.schema.json#/$defs/iso_datetime" }
+  },
+  "additionalProperties": false
+}

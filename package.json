@@ -1,0 +1,25 @@
+{
+  "name": "what2eat",
+  "version": "0.1.0",
+  "private": true,
+  "description": "what2eat: recipe planning MCP service + markdown recipe knowledge base",
+  "license": "UNLICENSED",
+  "workspaces": [
+    "packages/*",
+    "mcp/server"
+  ],
+  "scripts": {
+    "test": "vitest run",
+    "build": "tsc -b packages/recipe-domain packages/price-providers mcp/server",
+    "dev": "npm run dev -w mcp/server",
+    "start": "npm run start -w mcp/server",
+    "recipe": "tsx packages/recipe-domain/src/cli/index.ts"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "ajv": "^8.17.1",
+    "tsx": "^4.19.0",
+    "typescript": "^5.7.0",
+    "vitest": "^3.0.0"
+  }
+}

@@ -1,0 +1,67 @@
+{
+  "$id": "quote-ingredient-prices.output.schema.json",
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "quote_ingredient_prices 输出",
+  "type": "object",
+  "required": ["region", "currency", "quotes", "unmatched", "warnings"],
+  "properties": {
+    "region": { "type": "string" },
+    "currency": { "const": "CNY" },
+    "quotes": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["ingredient_id", "name", "unit", "unit_price", "region", "source", "confidence"],
+        "properties": {
+          "ingredient_id": { "type": "string" },
+          "name": { "type": "string" },
+          "quantity": { "type": ["number", "null"] },
+          "unit": { "type": "string", "description": "单价计价单位，如 斤/500g/piece" },
+          "unit_price": { "$ref": "https://what2eat.dev/schemas/common.schema.json#/$defs/price_range" },
+          "total_price": {
+            "type": ["object", "null"],
+            "description": "提供数量且可换算时返回总价区间",
+            "required": ["low", "high"],
+            "properties": {
+              "low": { "type": "number", "minimum": 0 },
+              "high": { "type": "number", "minimum": 0 }
+            },
+            "additionalProperties": false
+          },
+          "region": { "type": "string" },
+          "merchant": { "type": "string", "description": "商家或市场，如 北京新发地批发市场" },
+          "source": {
+            "type": "object",
+            "required": ["type", "name"],
+            "properties": {
+              "type": { "$ref": "https://what2eat.dev/schemas/common.schema.json#/$defs/price_data_type" },
+              "name": { "type": "string", "description": "来源标识" },
+              "url": { "type": ["string", "null"] }
+            },
+            "additionalProperties": false
+          },
+          "data_time": { "type": ["string", "null"], "description": "数据本身的日期/时间（ISO 8601 日期或日期时间）" },
+          "confidence": { "$ref": "https://what2eat.dev/schemas/common.schema.json#/$defs/confidence" }
+        },
+        "additionalProperties": false
+      }
+    },
+    "unmatched": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["ingredient", "reason"],
+        "properties": {
+          "ingredient": { "type": "string" },
+          "reason": { "type": "string" }
+        },
+        "additionalProperties": false
+      }
+    },
+    "warnings": {
+      "type": "array",
+      "items": { "$ref": "https://what2eat.dev/schemas/common.schema.json#/$defs/warning" }
+    }
+  },
+  "additionalProperties": false
+}

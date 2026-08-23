@@ -1,0 +1,57 @@
+{
+  "$id": "search-recipes.output.schema.json",
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "search_recipes 输出",
+  "type": "object",
+  "required": ["items", "next_cursor"],
+  "properties": {
+    "items": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["recipe_id", "version", "name", "summary", "core_ingredients", "total_minutes", "meal_types", "difficulty", "allergens", "match"],
+        "properties": {
+          "recipe_id": { "$ref": "https://what2eat.dev/schemas/common.schema.json#/$defs/recipe_id" },
+          "version": { "type": "integer", "minimum": 1 },
+          "name": { "type": "string" },
+          "summary": { "type": "string" },
+          "core_ingredients": {
+            "type": "array",
+            "maxItems": 8,
+            "items": {
+              "type": "object",
+              "required": ["id", "name"],
+              "properties": {
+                "id": { "type": ["string", "null"] },
+                "name": { "type": "string" }
+              },
+              "additionalProperties": false
+            }
+          },
+          "total_minutes": { "type": "integer", "minimum": 0 },
+          "meal_types": { "type": "array", "items": { "enum": ["breakfast", "lunch", "dinner", "snack"] } },
+          "difficulty": { "enum": ["easy", "medium", "hard"] },
+          "tags": { "type": "array", "items": { "type": "string" } },
+          "allergens": { "type": "array", "items": { "type": "string" } },
+          "match": {
+            "type": "object",
+            "required": ["fields"],
+            "properties": {
+              "fields": {
+                "type": "array",
+                "description": "命中的字段名，如 name/tags/ingredient",
+                "items": { "type": "string" }
+              },
+              "reason": { "type": "string", "description": "一句话可解释的匹配原因" }
+            },
+            "additionalProperties": false
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    "next_cursor": { "type": ["string", "null"] },
+    "total_matched": { "type": "integer", "minimum": 0, "description": "过滤后的总匹配数（内存索引，P0 可得）" }
+  },
+  "additionalProperties": false
+}

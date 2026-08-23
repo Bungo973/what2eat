@@ -1,0 +1,18 @@
+{
+  "$id": "read-recipe.input.schema.json",
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "read_recipe 输入",
+  "type": "object",
+  "required": ["recipe_id"],
+  "properties": {
+    "recipe_id": { "$ref": "https://what2eat.dev/schemas/common.schema.json#/$defs/recipe_id" },
+    "version": {
+      "type": ["integer", "null"],
+      "minimum": 1,
+      "description": "缺省为当前发布版本；指定时精确读取该版本，不静默替换"
+    },
+    "servings": { "type": ["number", "null"], "minimum": 0.5, "maximum": 40, "description": "目标份数；提供时返回换算后的食材数量" },
+    "format": { "enum": ["raw", "parsed", "both"], "default": "both" }
+  },
+  "additionalProperties": false
+}

@@ -1,0 +1,28 @@
+{
+  "$id": "error.schema.json",
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "统一错误契约",
+  "description": "所有 MCP 工具失败响应的统一结构（PRD §8.7）",
+  "type": "object",
+  "required": ["code", "message", "retryable"],
+  "properties": {
+    "code": {
+      "enum": [
+        "INVALID_ARGUMENT",
+        "NOT_FOUND",
+        "CONFLICT",
+        "UNAUTHORIZED",
+        "FORBIDDEN",
+        "RATE_LIMITED",
+        "TIMEOUT",
+        "PROVIDER_UNAVAILABLE",
+        "DATA_INVALID"
+      ]
+    },
+    "message": { "type": "string", "minLength": 1, "description": "面向 Agent 的简洁说明" },
+    "retryable": { "type": "boolean" },
+    "request_id": { "type": ["string", "null"] },
+    "details": { "type": "object", "additionalProperties": true, "default": {} }
+  },
+  "additionalProperties": false
+}

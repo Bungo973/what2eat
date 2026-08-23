@@ -1,0 +1,144 @@
+import { describe, expect, it } from "vitest";
+import { readFileSync, readdirSync } from "node:fs";
+import { fileURLToPath } from "node:url";
+import { dirname, join } from "node:path";
+import Ajv, { type ValidateFunction } from "ajv";
+
+const specsRoot = join(dirname(fileURLToPath(import.meta.url)), "../..", "specs");
+
+function loadSchemas(): Map<string, ValidateFunction> {
+  const ajv = new Ajv({ allErrors: true, strict: false });
+  const dirs = ["tools", "knowledge"];
+  const byFile = new Map<string, object>();
+  for (const dir of dirs) {
+    const dirPath = join(specsRoot, dir);
+    for (const file of readdirSync(dirPath)) {
+      if (!file.endsWith(".schema.json")) continue;
+      const schema = JSON.parse(readFileSync(join(dirPath, file), "utf-8"));
+      byFile.set(file, schema);
+      ajv.addSchema(schema, schema.$id ?? file);
+    }
+  }
+  const compiled = new Map<string, ValidateFunction>();
+  for (const [file, schema] of byFile) {
+    compiled.set(file, ajv.getSchema((schema as { $id?: string }).$id ?? file)!);
+  }
+  return compiled;
+}
+
+describe("specs 契约自检", () => {
+  const schemas = loadSchemas();
+
+  it("覆盖六个工具的输入输出 schema 与共享契约", () => {
+    const expected = [
+      "common.schema.json",
+      "error.schema.json",
+      "search-recipes.input.schema.json",
+      "search-recipes.output.schema.json",
+      "grep-recipe-docs.input.schema.json",
+      "grep-recipe-docs.output.schema.json",
+      "read-recipe.input.schema.json",
+      "read-recipe.output.schema.json",
+      "aggregate-shopping-list.input.schema.json",
+      "aggregate-shopping-list.output.schema.json",
+      "validate-meal-plan.input.schema.json",
+      "validate-meal-plan.output.schema.json",
+      "quote-ingredient-prices.input.schema.json",
+      "quote-ingredient-prices.output.schema.json",
+      "recipe-frontmatter.schema.json",
+      "ingredient-catalog.schema.json",
+      "benchmark-prices.schema.json",
+    ];
+    expect([...schemas.keys()].sort()).toEqual([...expected].sort());
+  });
+
+  it("所有 schema 均可被 ajv 编译", () => {
+    expect(schemas.size).toBe(17);
+    for (const [file, validate] of schemas) {
+      expect(typeof validate, `${file} 应编译为校验函数`).toBe("function");
+    }
+  });
+
+  it("统一错误契约：接受合法对象，拒绝未知错误码与缺字段", () => {
+    const validate = schemas.get("error.schema.json")!;
+    expect(
+      validate({
+        code: "RATE_LIMITED",
+        message: "price tool quota exceeded",
+        retryable: true,
+        request_id: "req-1",
+        details: {},
+      }),
+    ).toBe(true);
+    expect(validate({ code: "SOMETHING_ELSE", message: "x", retryable: false })).toBe(false);
+    expect(validate({ code: "NOT_FOUND", message: "x" })).toBe(false);
+  });
+
+  it("菜谱 frontmatter 契约：PRD §9.2 示例通过校验", () => {
+    const validate = schemas.get("recipe-frontmatter.schema.json")!;
+    const example = {
+      schema_version: 1,
+      recipe_id: "tomato-eggs",
+      version: 2,
+      status: "published",
+      name: "番茄炒蛋",
+      summary: "十五分钟完成的家常番茄炒蛋",
+      servings: 2,
+      prep_minutes: 5,
+      cook_minutes: 10,
+      meal_types: ["lunch", "dinner"],
+      difficulty: "easy",
+      equipment: ["wok"],
+      tags: ["quick", "home-style"],
+      dietary_labels: ["vegetarian"],
+      allergens: ["egg"],
+      ingredients: [
+        { id: "tomato", name: "番茄", quantity: 300, unit: "g", preparation: "切块" },
+        { id: "egg", name: "鸡蛋", quantity: 3, unit: "piece", preparation: "打散" },
+        { id: "salt", name: "盐", quantity: null, unit: null, notes: "按口味添加" },
+      ],
+      source: { name: "自有菜谱", url: null },
+      published_at: "2026-08-23",
+    };
+    const ok = validate(example);
+    expect(ok, JSON.stringify(validate.errors)).toBe(true);
+  });
+
+  it("菜谱 frontmatter 契约：拒绝未知单位与空食材表", () => {
+    const validate = schemas.get("recipe-frontmatter.schema.json")!;
+    expect(validate({ recipe_id: "x", version: 1 })).toBe(false);
+  });
+
+  it("search_recipes 输入：拒绝未知字段与超界 limit", () => {
+    const validate = schemas.get("search-recipes.input.schema.json")!;
+    expect(validate({ query: "番茄", limit: 10 })).toBe(true);
+    expect(validate({ query: "番茄", limit: 999 })).toBe(false);
+    expect(validate({ querry: "typo" })).toBe(false);
+  });
+
+  it("quote_ingredient_prices 输出：区间与来源类型字段受控", () => {
+    const validate = schemas.get("quote-ingredient-prices.output.schema.json")!;
+    const ok = validate({
+      region: "北京",
+      currency: "CNY",
+      quotes: [
+        {
+          ingredient_id: "tomato",
+          name: "番茄",
+          unit: "斤",
+          unit_price: { low: 0.8, high: 1.3 },
+          quantity: 2,
+          total_price: { low: 1.6, high: 2.6 },
+          region: "北京",
+          merchant: "北京新发地批发市场",
+          source: { type: "realtime", name: "xinfadi", url: "http://www.xinfadi.com.cn/" },
+          data_time: "2026-08-23T00:00:00+08:00",
+          confidence: "medium",
+        },
+      ],
+      unmatched: [],
+      warnings: [],
+    });
+    expect(ok, JSON.stringify(validate.errors)).toBe(true);
+  });
+});

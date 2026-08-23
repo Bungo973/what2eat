@@ -1,0 +1,100 @@
+{
+  "$id": "recipe-frontmatter.schema.json",
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "菜谱文档 frontmatter 契约",
+  "description": "knowledge/recipes/<id>/vN.md 与 drafts/ 文档的 YAML frontmatter 结构底线（PRD §9.2/9.3）。跨字段与版本状态规则由 recipe-domain 校验器实现。",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "recipe_id",
+    "version",
+    "status",
+    "name",
+    "summary",
+    "servings",
+    "prep_minutes",
+    "cook_minutes",
+    "meal_types",
+    "difficulty",
+    "equipment",
+    "tags",
+    "dietary_labels",
+    "allergens",
+    "ingredients",
+    "source"
+  ],
+  "properties": {
+    "schema_version": { "const": 1 },
+    "recipe_id": { "type": "string", "pattern": "^[a-z0-9][a-z0-9-]*$", "maxLength": 64 },
+    "version": { "type": "integer", "minimum": 1 },
+    "status": { "enum": ["draft", "published", "archived"] },
+    "name": { "type": "string", "minLength": 1, "maxLength": 60 },
+    "summary": { "type": "string", "minLength": 1, "maxLength": 200 },
+    "servings": { "type": "integer", "minimum": 1, "maximum": 20 },
+    "prep_minutes": { "type": "integer", "minimum": 0, "maximum": 600 },
+    "cook_minutes": { "type": "integer", "minimum": 0, "maximum": 600 },
+    "meal_types": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": { "enum": ["breakfast", "lunch", "dinner", "snack"] }
+    },
+    "difficulty": { "enum": ["easy", "medium", "hard"] },
+    "equipment": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": { "type": "string", "pattern": "^[a-z][a-z0-9-]*$", "maxLength": 32 }
+    },
+    "tags": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": { "type": "string", "minLength": 1, "maxLength": 32 }
+    },
+    "dietary_labels": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": { "type": "string", "minLength": 1, "maxLength": 32 }
+    },
+    "allergens": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": { "type": "string", "pattern": "^[a-z_]+$", "maxLength": 32 }
+    },
+    "ingredients": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": ["id", "name"],
+        "properties": {
+          "id": { "type": "string", "pattern": "^[a-z][a-z0-9_]*$", "description": "标准食材 ID；调味料等可不量化" },
+          "name": { "type": "string", "minLength": 1, "maxLength": 40 },
+          "quantity": { "type": ["number", "null"], "minimum": 0 },
+          "unit": {
+            "type": ["string", "null"],
+            "enum": [null, "g", "kg", "ml", "l", "piece", "两", "斤"]
+          },
+          "preparation": { "type": "string", "maxLength": 60 },
+          "notes": { "type": "string", "maxLength": 120 }
+        },
+        "additionalProperties": false
+      }
+    },
+    "source": {
+      "type": "object",
+      "required": ["name", "url"],
+      "properties": {
+        "name": { "type": "string", "minLength": 1, "maxLength": 80 },
+        "url": { "type": ["string", "null"], "pattern": "^https?://.+$" }
+      },
+      "additionalProperties": false
+    },
+    "published_at": {
+      "type": "string",
+      "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$",
+      "description": "status 为 published/archived 时必填（由校验器强制）"
+    },
+    "archived_reason": { "type": "string", "maxLength": 200 }
+  },
+  "additionalProperties": false
+}

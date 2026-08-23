@@ -1,0 +1,41 @@
+{
+  "$id": "aggregate-shopping-list.input.schema.json",
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "aggregate_shopping_list 输入",
+  "type": "object",
+  "required": ["items"],
+  "properties": {
+    "items": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 50,
+      "items": {
+        "type": "object",
+        "required": ["recipe_id", "servings"],
+        "properties": {
+          "recipe_id": { "$ref": "https://what2eat.dev/schemas/common.schema.json#/$defs/recipe_id" },
+          "version": { "type": ["integer", "null"], "minimum": 1, "description": "缺省为当前发布版本" },
+          "servings": { "type": "number", "minimum": 0.5, "maximum": 40 },
+          "date": { "type": "string", "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$", "description": "关联日期（可选，原样带回）" }
+        },
+        "additionalProperties": false
+      }
+    },
+    "owned_ingredients": {
+      "type": "array",
+      "maxItems": 50,
+      "description": "已有库存；数量不可为 null",
+      "items": {
+        "type": "object",
+        "required": ["ingredient", "quantity", "unit"],
+        "properties": {
+          "ingredient": { "$ref": "https://what2eat.dev/schemas/common.schema.json#/$defs/ingredient_ref" },
+          "quantity": { "type": "number", "exclusiveMinimum": 0 },
+          "unit": { "enum": ["g", "kg", "ml", "l", "piece", "两", "斤"] }
+        },
+        "additionalProperties": false
+      }
+    }
+  },
+  "additionalProperties": false
+}

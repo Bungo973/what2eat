@@ -1,0 +1,30 @@
+{
+  "$id": "grep-recipe-docs.input.schema.json",
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "grep_recipe_docs 输入",
+  "type": "object",
+  "required": ["pattern"],
+  "properties": {
+    "pattern": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 80,
+      "description": "纯文本子串（P0 不执行调用方正则），latin 字符不区分大小写"
+    },
+    "recipe_ids": {
+      "type": "array",
+      "uniqueItems": true,
+      "maxItems": 50,
+      "items": { "$ref": "https://what2eat.dev/schemas/common.schema.json#/$defs/recipe_id" }
+    },
+    "sections": {
+      "type": "array",
+      "uniqueItems": true,
+      "maxItems": 10,
+      "items": { "type": "string", "minLength": 1, "maxLength": 40, "description": "限定搜索的章节标题，如 做法/替换建议/储存与安全" }
+    },
+    "limit": { "$ref": "https://what2eat.dev/schemas/common.schema.json#/$defs/limit" },
+    "cursor": { "$ref": "https://what2eat.dev/schemas/common.schema.json#/$defs/cursor" }
+  },
+  "additionalProperties": false
+}

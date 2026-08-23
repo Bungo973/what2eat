@@ -1,0 +1,13 @@
+{
+  "name": "@what2eat/price-providers",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "./src/index.ts",
+  "scripts": {
+    "typecheck": "tsc -p . --noEmit"
+  },
+  "dependencies": {
+    "@what2eat/recipe-domain": "*"
+  }
+}

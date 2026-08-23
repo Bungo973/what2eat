@@ -1,0 +1,98 @@
+{
+  "$id": "validate-meal-plan.input.schema.json",
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "validate_meal_plan 输入",
+  "type": "object",
+  "required": ["meals"],
+  "properties": {
+    "meals": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 100,
+      "items": {
+        "type": "object",
+        "required": ["date", "meal_type", "recipe_id", "servings"],
+        "properties": {
+          "date": { "type": "string", "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$" },
+          "meal_type": { "enum": ["breakfast", "lunch", "dinner", "snack"] },
+          "recipe_id": { "$ref": "https://what2eat.dev/schemas/common.schema.json#/$defs/recipe_id" },
+          "version": { "type": ["integer", "null"], "minimum": 1, "description": "缺省为当前发布版本" },
+          "servings": { "type": "number", "minimum": 0.5, "maximum": 40 }
+        },
+        "additionalProperties": false
+      }
+    },
+    "expected_scope": {
+      "type": "object",
+      "description": "期望覆盖的日期与餐次；提供时校验完整性",
+      "required": ["dates", "meal_types"],
+      "properties": {
+        "dates": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 31,
+          "items": { "type": "string", "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$" }
+        },
+        "meal_types": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": { "enum": ["breakfast", "lunch", "dinner", "snack"] }
+        }
+      },
+      "additionalProperties": false
+    },
+    "constraints": {
+      "type": "object",
+      "properties": {
+        "exclude_allergens": {
+          "type": "array",
+          "uniqueItems": true,
+          "maxItems": 10,
+          "items": { "type": "string", "pattern": "^[a-z_]+$" }
+        },
+        "excluded_ingredients": {
+          "type": "array",
+          "uniqueItems": true,
+          "maxItems": 20,
+          "items": { "$ref": "https://what2eat.dev/schemas/common.schema.json#/$defs/ingredient_ref" }
+        },
+        "dietary_patterns": {
+          "type": "array",
+          "uniqueItems": true,
+          "maxItems": 10,
+          "items": { "type": "string" }
+        },
+        "max_cooking_minutes": { "type": "integer", "minimum": 1, "maximum": 1200 },
+        "unavailable_equipment": {
+          "type": "array",
+          "uniqueItems": true,
+          "maxItems": 10,
+          "items": { "type": "string", "pattern": "^[a-z][a-z0-9-]*$" }
+        },
+        "budget": {
+          "type": "object",
+          "required": ["mode", "amount", "currency"],
+          "properties": {
+            "mode": { "enum": ["hard", "soft"] },
+            "amount": { "type": "number", "exclusiveMinimum": 0 },
+            "currency": { "const": "CNY" }
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    },
+    "pricing": {
+      "type": "object",
+      "description": "由 quote_ingredient_prices 得到的总价区间；提供且预算为硬上限时执行预算校验",
+      "required": ["total_range", "currency"],
+      "properties": {
+        "total_range": { "$ref": "https://what2eat.dev/schemas/common.schema.json#/$defs/price_range" },
+        "currency": { "const": "CNY" }
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}

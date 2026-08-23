@@ -1,0 +1,27 @@
+{
+  "$id": "grep-recipe-docs.output.schema.json",
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "grep_recipe_docs 输出",
+  "type": "object",
+  "required": ["matches", "next_cursor"],
+  "properties": {
+    "matches": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["recipe_id", "version", "section", "line", "excerpt"],
+        "properties": {
+          "recipe_id": { "$ref": "https://what2eat.dev/schemas/common.schema.json#/$defs/recipe_id" },
+          "version": { "type": "integer", "minimum": 1 },
+          "section": { "type": "string", "description": "命中行所属章节标题；文档头部为 frontmatter 后首个标题之前时为空串" },
+          "line": { "type": "integer", "minimum": 1, "description": "正文中的 1 起始行号" },
+          "excerpt": { "type": "string", "maxLength": 240, "description": "命中行片段，超长截断" }
+        },
+        "additionalProperties": false
+      }
+    },
+    "next_cursor": { "type": ["string", "null"] },
+    "total_matched": { "type": "integer", "minimum": 0 }
+  },
+  "additionalProperties": false
+}

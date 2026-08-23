@@ -1,0 +1,81 @@
+{
+  "$id": "read-recipe.output.schema.json",
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "read_recipe 输出",
+  "type": "object",
+  "required": ["recipe_id", "version", "status", "warnings"],
+  "properties": {
+    "recipe_id": { "$ref": "https://what2eat.dev/schemas/common.schema.json#/$defs/recipe_id" },
+    "version": { "type": "integer", "minimum": 1 },
+    "status": { "enum": ["published", "archived"] },
+    "raw_markdown": { "type": "string", "description": "format 含 raw 时返回完整原文" },
+    "parsed": {
+      "type": "object",
+      "description": "format 含 parsed 时返回",
+      "required": ["name", "summary", "servings", "prep_minutes", "cook_minutes", "total_minutes", "meal_types", "difficulty", "equipment", "tags", "dietary_labels", "allergens", "ingredients", "source"],
+      "properties": {
+        "name": { "type": "string" },
+        "summary": { "type": "string" },
+        "servings": { "type": "integer", "minimum": 1 },
+        "prep_minutes": { "type": "integer", "minimum": 0 },
+        "cook_minutes": { "type": "integer", "minimum": 0 },
+        "total_minutes": { "type": "integer", "minimum": 0 },
+        "meal_types": { "type": "array", "items": { "enum": ["breakfast", "lunch", "dinner", "snack"] } },
+        "difficulty": { "enum": ["easy", "medium", "hard"] },
+        "equipment": { "type": "array", "items": { "type": "string" } },
+        "tags": { "type": "array", "items": { "type": "string" } },
+        "dietary_labels": { "type": "array", "items": { "type": "string" } },
+        "allergens": { "type": "array", "items": { "type": "string" } },
+        "ingredients": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["id", "name"],
+            "properties": {
+              "id": { "type": "string" },
+              "name": { "type": "string" },
+              "quantity": { "type": ["number", "null"] },
+              "unit": { "type": ["string", "null"] },
+              "preparation": { "type": "string" },
+              "notes": { "type": "string" }
+            },
+            "additionalProperties": false
+          }
+        },
+        "source": {
+          "type": "object",
+          "required": ["name", "url"],
+          "properties": {
+            "name": { "type": "string" },
+            "url": { "type": ["string", "null"] }
+          },
+          "additionalProperties": false
+        },
+        "published_at": { "type": "string" }
+      },
+      "additionalProperties": false
+    },
+    "scaled_servings": { "type": "number", "description": "请求的 target servings" },
+    "scaled_ingredients": {
+      "type": "array",
+      "description": "servings 提供时返回；不可换算的项保留原值",
+      "items": {
+        "type": "object",
+        "required": ["id", "name", "quantity", "unit"],
+        "properties": {
+          "id": { "type": "string" },
+          "name": { "type": "string" },
+          "quantity": { "type": ["number", "null"] },
+          "unit": { "type": ["string", "null"] },
+          "warning": { "type": "string" }
+        },
+        "additionalProperties": false
+      }
+    },
+    "warnings": {
+      "type": "array",
+      "items": { "$ref": "https://what2eat.dev/schemas/common.schema.json#/$defs/warning" }
+    }
+  },
+  "additionalProperties": false
+}
