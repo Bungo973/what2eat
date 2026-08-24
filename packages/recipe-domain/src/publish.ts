@@ -1,5 +1,5 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
-import { join } from "node:path";
+import { basename, join } from "node:path";
 import { parseMarkdown, serializeMarkdown } from "./markdown.ts";
 import { CatalogIndex } from "./catalog.ts";
 import { conflict, dataInvalid, invalidArgument, notFound } from "./errors.ts";
@@ -78,7 +78,7 @@ export function publishDraft(
     meta.allergens = [...new Set([...meta.allergens, ...allergenFixes])].sort();
   }
 
-  const targetPath = repo.resolveRecipePath(recipeId, version);
+  const targetPath = repo.resolveRecipePath(recipeId, version, meta.name);
   if (existsSync(targetPath)) {
     throw conflict(`目标版本已存在（已发布版本不可覆盖）: ${targetPath}`, {
       recipe_id: recipeId,
@@ -93,7 +93,7 @@ export function publishDraft(
     );
   }
 
-  repo.writeRecipe({ meta, body: parsed.body, relPath: `recipes/${recipeId}/v${version}.md` });
+  repo.writeRecipe({ meta, body: parsed.body, relPath: `recipes/${recipeId}/${basename(targetPath)}` });
   repo.removeDraft(recipeId, version);
   return {
     recipeId,
@@ -123,11 +123,11 @@ export function archiveRecipe(
     status: "archived",
     archived_reason: reason,
   };
-  const targetPath = repo.resolveRecipePath(recipeId, nextVersion);
+  const targetPath = repo.resolveRecipePath(recipeId, nextVersion, meta.name);
   repo.writeRecipe({
     meta,
     body: current.body,
-    relPath: `recipes/${recipeId}/v${nextVersion}.md`,
+    relPath: `recipes/${recipeId}/${basename(targetPath)}`,
   });
   return { archivedVersion: nextVersion, path: targetPath };
 }
@@ -198,6 +198,35 @@ export function validateKnowledge(
     } catch (e) {
       problems.push((e as Error).message);
     }
+  }
+  try {
+    for (const rule of repo.loadSubstitutions()) {
+      if (!catalog.byIdentifier(rule.from_ingredient)) {
+        problems.push(`替换规则 ${rule.substitution_id}: 原食材不存在 ${rule.from_ingredient}`);
+      }
+      if (rule.to_ingredient && !catalog.byIdentifier(rule.to_ingredient)) {
+        problems.push(`替换规则 ${rule.substitution_id}: 替代食材不存在 ${rule.to_ingredient}`);
+      }
+      for (const recipeId of rule.valid_context.recipe_ids) {
+        if (!ids.includes(recipeId)) {
+          problems.push(`替换规则 ${rule.substitution_id}: 菜谱引用不存在 ${recipeId}`);
+        }
+      }
+    }
+  } catch (e) {
+    problems.push((e as Error).message);
+  }
+  try {
+    for (const relation of repo.loadRecipeRelations()) {
+      if (!ids.includes(relation.source_recipe_id)) {
+        problems.push(`菜谱关系 ${relation.relation_id}: 来源菜谱不存在 ${relation.source_recipe_id}`);
+      }
+      if (!ids.includes(relation.target_recipe_id)) {
+        problems.push(`菜谱关系 ${relation.relation_id}: 目标菜谱不存在 ${relation.target_recipe_id}`);
+      }
+    }
+  } catch (e) {
+    problems.push((e as Error).message);
   }
   return { ok: problems.length === 0, problems, publishedCount };
 }

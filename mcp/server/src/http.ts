@@ -2,7 +2,8 @@ import { createServer, type IncomingMessage, type ServerResponse } from "node:ht
 import { createHash, randomUUID, timingSafeEqual } from "node:crypto";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
-import { ToolError } from "@what2eat/recipe-domain";
+import type { Transport } from "@modelcontextprotocol/sdk/shared/transport.js";
+import { ToolError, invalidArgument } from "@what2eat/recipe-domain";
 import { buildContext, type ServiceContext } from "./context.ts";
 import { log } from "./logger.ts";
 import { defaultRateLimits } from "./ratelimit.ts";
@@ -44,18 +45,62 @@ function readBody(req: IncomingMessage): Promise<Buffer> {
   return new Promise((resolve, reject) => {
     const chunks: Buffer[] = [];
     let size = 0;
+    let rejected = false;
     req.on("data", (chunk: Buffer) => {
+      if (rejected) return;
       size += chunk.length;
       if (size > MAX_BODY_BYTES) {
-        reject(new ToolError("INVALID_ARGUMENT", "请求体超过 1MB 上限"));
-        req.destroy();
+        rejected = true;
+        chunks.length = 0;
+        reject(
+          new ToolError("INVALID_ARGUMENT", "请求体超过 1MB 上限", {
+            max_body_bytes: MAX_BODY_BYTES,
+          }),
+        );
         return;
       }
       chunks.push(chunk);
     });
-    req.on("end", () => resolve(Buffer.concat(chunks)));
-    req.on("error", reject);
+    req.on("end", () => {
+      if (!rejected) resolve(Buffer.concat(chunks));
+    });
+    req.on("error", (error) => {
+      if (!rejected) reject(error);
+    });
   });
+}
+
+function parseBody(body: Buffer): unknown {
+  if (body.length === 0) return undefined;
+  try {
+    return JSON.parse(body.toString("utf-8"));
+  } catch {
+    throw invalidArgument("请求体不是有效的 JSON");
+  }
+}
+
+function statusFor(error: ToolError | null): number {
+  switch (error?.code) {
+    case "INVALID_ARGUMENT":
+      return 400;
+    case "UNAUTHORIZED":
+      return 401;
+    case "FORBIDDEN":
+      return 403;
+    case "NOT_FOUND":
+      return 404;
+    case "CONFLICT":
+      return 409;
+    case "RATE_LIMITED":
+      return 429;
+    case "TIMEOUT":
+      return 504;
+    case "PROVIDER_UNAVAILABLE":
+      return 503;
+    case "DATA_INVALID":
+    case undefined:
+      return 500;
+  }
 }
 
 /** 创建 what2eat MCP HTTP 服务（Streamable HTTP, 无状态模式）。 */
@@ -66,15 +111,21 @@ export function createWhat2EatServer(config: ServerConfig) {
   const server = createServer(async (req, res) => {
     const requestId = randomUUID();
     const startedAt = Date.now();
-    const url = req.url ?? "/";
+    const url = new URL(req.url ?? "/", "http://localhost");
 
-    if (url === "/health") {
+    if (url.pathname === "/health") {
       sendJson(res, 200, { ok: true, service: "what2eat-mcp" });
       return;
     }
 
-    if (url !== "/mcp") {
-      sendJson(res, 404, { code: "NOT_FOUND", message: "未知路径，MCP 端点为 /mcp", retryable: false });
+    if (url.pathname !== "/mcp") {
+      sendJson(res, 404, {
+        code: "NOT_FOUND",
+        message: "未知路径，MCP 端点为 /mcp",
+        retryable: false,
+        request_id: requestId,
+        details: {},
+      });
       return;
     }
 
@@ -115,7 +166,6 @@ export function createWhat2EatServer(config: ServerConfig) {
     try {
       const body = await readBody(req);
       const transport = new StreamableHTTPServerTransport({
-        sessionIdGenerator: undefined,
         enableJsonResponse: true,
       });
       const mcp = new McpServer(
@@ -130,13 +180,19 @@ export function createWhat2EatServer(config: ServerConfig) {
       registerTools(mcp, env);
       registerPriceTool(mcp, env, config.priceHandler);
 
-      res.on("close", () => {
-        transport.close();
-        void mcp.close();
+      res.once("close", () => {
+        void mcp.close().catch((error: unknown) => {
+          log.warn("mcp_close_failed", {
+            request_id: requestId,
+            error: error instanceof Error ? error.message : String(error),
+          });
+        });
       });
 
-      await mcp.connect(transport);
-      await transport.handleRequest(req, res, body.length ? JSON.parse(body.toString("utf-8")) : undefined);
+      // SDK 1.30 的 Node transport getter 与其 Transport 可选回调在
+      // exactOptionalPropertyTypes 下声明不兼容；运行时实现的是同一接口。
+      await mcp.connect(transport as Transport);
+      await transport.handleRequest(req, res, parseBody(body));
 
       log.info("mcp_request", {
         request_id: requestId,
@@ -150,12 +206,12 @@ export function createWhat2EatServer(config: ServerConfig) {
         error_code: err?.code ?? "DATA_INVALID",
       });
       if (!res.headersSent) {
-        sendJson(res, err ? 400 : 500, {
+        sendJson(res, statusFor(err), {
           code: err?.code ?? "DATA_INVALID",
           message: err?.message ?? "请求处理失败",
           retryable: err?.retryable ?? false,
           request_id: requestId,
-          details: {},
+          details: err?.details ?? {},
         });
       } else {
         res.end();

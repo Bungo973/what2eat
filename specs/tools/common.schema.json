@@ -36,7 +36,9 @@
     "price_data_type": { "enum": ["realtime", "cached", "benchmark"] },
     "ingredient_ref": {
       "type": "string",
-      "pattern": "^[a-z][a-z0-9_]*$",
+      "minLength": 1,
+      "maxLength": 80,
+      "pattern": "^[^\\r\\n]+$",
       "description": "标准食材 ID；或尚未标准化的食材名称（服务端负责解析并披露）"
     },
     "recipe_id": {

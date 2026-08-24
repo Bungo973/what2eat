@@ -3,11 +3,22 @@ import { z } from "zod";
 import {
   ToolError,
   aggregateShoppingList,
+  findReplacements,
   validateMealPlan,
   validateToolInput,
+  validateToolOutput,
+  type AggregateItemInput,
+  type FindReplacementsInput,
+  type GrepParams,
+  type MealPlanInput,
+  type MealPlanHtmlInput,
+  type OwnedIngredientInput,
+  type ReadParams,
+  type SearchParams,
   type ToolName,
 } from "@what2eat/recipe-domain";
 import type { ServiceContext } from "./context.ts";
+import { renderHtmlArtifact } from "./html.ts";
 import { TokenBucket } from "./ratelimit.ts";
 
 export interface ToolEnv {
@@ -18,6 +29,14 @@ export interface ToolEnv {
 
 function ok(data: unknown) {
   return { content: [{ type: "text" as const, text: JSON.stringify(data) }] };
+}
+
+function success(tool: ToolName, data: unknown): ReturnType<typeof ok> {
+  const result = validateToolOutput(tool, data);
+  if (!result.ok) {
+    throw new ToolError("DATA_INVALID", `工具输出不符合契约: ${result.message}`, { tool });
+  }
+  return ok(data);
 }
 
 function fail(e: unknown): ReturnType<typeof ok> & { isError: true } {
@@ -41,11 +60,17 @@ function guardRate(env: ToolEnv, bucket: "general" | "price"): void {
 }
 
 /** specs/ 契约校验：所有工具输入以 specs JSON Schema 为准（单一事实源）。 */
-function checkInput(tool: ToolName, input: unknown): void {
+function checkInput<T>(tool: ToolName, input: unknown): T {
   const result = validateToolInput(tool, input);
   if (!result.ok) {
     throw new ToolError("INVALID_ARGUMENT", `输入不符合契约: ${result.message}`, { tool });
   }
+  return input as T;
+}
+
+interface AggregateShoppingListInput {
+  items: AggregateItemInput[];
+  owned_ingredients?: OwnedIngredientInput[];
 }
 
 export function registerTools(server: McpServer, env: ToolEnv): void {
@@ -74,8 +99,8 @@ export function registerTools(server: McpServer, env: ToolEnv): void {
     async (args) => {
       try {
         guardRate(env, "general");
-        checkInput("search_recipes", args);
-        return ok(ctx.search.search(args));
+        const input = checkInput<SearchParams>("search_recipes", args);
+        return success("search_recipes", ctx.search.search(input));
       } catch (e) {
         return fail(e);
       }
@@ -99,8 +124,8 @@ export function registerTools(server: McpServer, env: ToolEnv): void {
     async (args) => {
       try {
         guardRate(env, "general");
-        checkInput("grep_recipe_docs", args);
-        return ok(ctx.search.grep(args));
+        const input = checkInput<GrepParams>("grep_recipe_docs", args);
+        return success("grep_recipe_docs", ctx.search.grep(input));
       } catch (e) {
         return fail(e);
       }
@@ -123,8 +148,40 @@ export function registerTools(server: McpServer, env: ToolEnv): void {
     async (args) => {
       try {
         guardRate(env, "general");
-        checkInput("read_recipe", args);
-        return ok(ctx.search.read(args));
+        const input = checkInput<ReadParams>("read_recipe", args);
+        return success("read_recipe", ctx.search.read(input));
+      } catch (e) {
+        return fail(e);
+      }
+    },
+  );
+
+  server.registerTool(
+    "find_replacements",
+    {
+      title: "查询替换与备选菜谱",
+      description:
+        "针对已发布菜谱查询审核过的食材替换规则、人工菜谱关系和通过硬过滤的整菜候选；只返回候选，不直接修改方案或宣称更省钱。",
+      inputSchema: {
+        recipe_id: z.string().min(1).max(64),
+        version: z.number().int().min(1).nullable().optional(),
+        reason: z.enum(["unavailable", "budget", "preference"]),
+        unavailable_ingredients: z.array(z.string()).max(20).optional(),
+        exclude_allergens: z.array(z.string()).max(10).optional(),
+        dietary_constraints: z.array(z.string()).max(10).optional(),
+        max_total_minutes: z.number().int().min(1).max(1200).optional(),
+        equipment: z.array(z.string()).max(10).optional(),
+        limit: z.number().int().min(1).max(20).optional(),
+      },
+    },
+    async (args) => {
+      try {
+        guardRate(env, "general");
+        const input = checkInput<FindReplacementsInput>("find_replacements", args);
+        return success(
+          "find_replacements",
+          findReplacements(ctx.repo, ctx.catalog, ctx.search, input),
+        );
       } catch (e) {
         return fail(e);
       }
@@ -164,9 +221,10 @@ export function registerTools(server: McpServer, env: ToolEnv): void {
     async (args) => {
       try {
         guardRate(env, "general");
-        checkInput("aggregate_shopping_list", args);
-        return ok(
-          aggregateShoppingList(ctx.repo, ctx.catalog, args.items, args.owned_ingredients ?? []),
+        const input = checkInput<AggregateShoppingListInput>("aggregate_shopping_list", args);
+        return success(
+          "aggregate_shopping_list",
+          aggregateShoppingList(ctx.repo, ctx.catalog, input.items, input.owned_ingredients ?? []),
         );
       } catch (e) {
         return fail(e);
@@ -219,6 +277,8 @@ export function registerTools(server: McpServer, env: ToolEnv): void {
           .object({
             total_range: z.object({ low: z.number(), high: z.number() }),
             currency: z.literal("CNY"),
+            complete: z.boolean().optional(),
+            budget_status: z.enum(["verified", "reference_only", "incomplete"]).optional(),
           })
           .optional(),
       },
@@ -226,8 +286,122 @@ export function registerTools(server: McpServer, env: ToolEnv): void {
     async (args) => {
       try {
         guardRate(env, "general");
-        checkInput("validate_meal_plan", args);
-        return ok(validateMealPlan(ctx.repo, ctx.catalog, args));
+        const input = checkInput<MealPlanInput>("validate_meal_plan", args);
+        return success("validate_meal_plan", validateMealPlan(ctx.repo, ctx.catalog, input));
+      } catch (e) {
+        return fail(e);
+      }
+    },
+  );
+
+  server.registerTool(
+    "render_meal_plan_html",
+    {
+      title: "渲染餐单 HTML",
+      description:
+        "把已完成的结构化菜单、菜谱、采购和可选报价确定性渲染为自包含 HTML 文件；不搜索、不汇总、不报价、不校验。",
+      inputSchema: {
+        title: z.string().min(1).max(100),
+        summary: z
+          .object({
+            date_range: z.string().max(80).optional(),
+            servings: z.string().max(40).optional(),
+            constraints: z.array(z.string().max(120)).max(20).optional(),
+          })
+          .optional(),
+        menu: z
+          .array(
+            z.object({
+              date: z.string().max(40),
+              meal_type: z.string().max(20),
+              dishes: z
+                .array(
+                  z.object({
+                    name: z.string().max(80),
+                    recipe_id: z.string().max(64),
+                    version: z.number().int().min(1),
+                    servings: z.number().positive(),
+                    total_minutes: z.number().int().min(0),
+                  }),
+                )
+                .min(1)
+                .max(10),
+            }),
+          )
+          .min(1)
+          .max(100),
+        recipes: z
+          .array(
+            z.object({
+              name: z.string().max(80),
+              recipe_id: z.string().max(64),
+              version: z.number().int().min(1),
+              servings: z.number().positive(),
+              total_minutes: z.number().int().min(0),
+              ingredients: z
+                .array(
+                  z.object({
+                    name: z.string().max(80),
+                    quantity: z.number().nullable(),
+                    unit: z.string().max(20).nullable(),
+                    preparation: z.string().max(120).optional(),
+                    notes: z.string().max(160).optional(),
+                  }),
+                )
+                .min(1),
+              steps: z.array(z.string().min(1).max(1000)).min(1),
+            }),
+          )
+          .min(1)
+          .max(100),
+        shopping_groups: z.array(
+          z.object({
+            category: z.string().max(60),
+            items: z.array(
+              z.object({
+                name: z.string().max(80),
+                required: z.string().max(60),
+                owned: z.string().max(60).optional(),
+                to_buy: z.string().max(60),
+                used_in: z.array(z.string().max(100)).max(30).optional(),
+              }),
+            ),
+          }),
+        ),
+        pricing: z
+          .object({
+            requested_region: z.string().max(40),
+            currency: z.literal("CNY"),
+            total_range: z
+              .object({ low: z.number().min(0), high: z.number().min(0) })
+              .nullable()
+              .optional(),
+            budget_status: z.enum(["verified", "reference_only", "incomplete"]),
+            coverage_summary: z.string().max(300),
+            budget_note: z.string().max(300).optional(),
+            items: z.array(
+              z.object({
+                name: z.string().max(80),
+                quantity: z.string().max(60),
+                unit_price: z.string().max(80),
+                subtotal: z.string().max(80),
+                matched_region: z.string().max(80),
+                basis: z.string().max(80),
+                source: z.string().max(120),
+                data_time: z.string().max(80).optional(),
+                confidence: z.string().max(30),
+              }),
+            ),
+          })
+          .optional(),
+        notices: z.array(z.string().max(400)).max(50).optional(),
+      },
+    },
+    async (args) => {
+      try {
+        guardRate(env, "general");
+        const input = checkInput<MealPlanHtmlInput>("render_meal_plan_html", args);
+        return success("render_meal_plan_html", renderHtmlArtifact(input));
       } catch (e) {
         return fail(e);
       }
@@ -247,9 +421,9 @@ export function registerPriceTool(
     {
       title: "查询食材参考价",
       description:
-        "查询一组标准食材在指定地区的参考价格区间，带来源、时间与可信度；实时失败时降级到缓存或基准价。",
+        "查询一组标准食材的省级参考价格区间，区分采购数量单位与单价单位，并返回省级覆盖、全国/跨地区回退、市场数与预算可用性；可禁止全部跨地区回退。",
       inputSchema: {
-        region: z.string().min(2).max(32),
+        region: z.string().min(2).max(32).optional(),
         ingredients: z
           .array(
             z.object({
@@ -262,13 +436,17 @@ export function registerPriceTool(
           .max(30),
         channel: z.string().max(32).nullable().optional(),
         max_age_hours: z.number().int().min(1).max(720).nullable().optional(),
+        allow_national_fallback: z.boolean().optional(),
       },
     },
     async (args) => {
       try {
         guardRate(env, "price");
         checkInput("quote_ingredient_prices", args);
-        return ok(await handler(args as Record<string, unknown>));
+        return success(
+          "quote_ingredient_prices",
+          await handler(args as Record<string, unknown>),
+        );
       } catch (e) {
         return fail(e);
       }

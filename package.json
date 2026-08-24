@@ -10,10 +10,13 @@
   ],
   "scripts": {
     "test": "vitest run",
-    "build": "tsc -b packages/recipe-domain packages/price-providers mcp/server",
+    "build": "npm run skill:check && npm run typecheck --workspaces --if-present",
+    "typecheck": "npm run typecheck --workspaces --if-present",
+    "skill:build": "node scripts/build-skill.mjs",
+    "skill:check": "node scripts/build-skill.mjs --check",
     "dev": "npm run dev -w mcp/server",
     "start": "npm run start -w mcp/server",
-    "recipe": "tsx packages/recipe-domain/src/cli/index.ts"
+    "recipe": "node scripts/run-recipe.mjs"
   },
   "devDependencies": {
     "@types/node": "^22.10.0",

@@ -8,14 +8,18 @@ import {
   CatalogIndex,
   KnowledgeRepo,
   RecipeSearchService,
+  renderMealPlanHtml,
   ToolError,
+  toBaseUnit,
   validateMealPlan,
 } from "@what2eat/recipe-domain";
 
 let knowledgeDir: string;
 
 function mdFromMeta(meta: Record<string, unknown>, body?: string): string {
-  const content = body ?? `# ${meta.name}\n\n## 做法\n\n1. 番茄切块，鸡蛋打散。\n2. 温油下锅，慢炒出汁后出锅。\n`;
+  const content =
+    body ??
+    `# ${meta.name}\n\n## 做法\n\n1. 番茄切块，鸡蛋打散。\n2. 温油下锅，慢炒出汁后出锅。\n\n## 替换建议\n\n- 无特殊替换建议。\n\n## 储存与安全\n\n- 当餐食用，冷藏不超过 24 小时。\n`;
   return `---\n${yamlStringify(meta).trimEnd()}\n---\n${content}`;
 }
 
@@ -97,7 +101,9 @@ function baseMeta(id: string, version: number, overrides: Record<string, unknown
 function writePublished(id: string, version: number, overrides: Record<string, unknown> = {}): void {
   const dir = join(knowledgeDir, "recipes", id);
   mkdirSync(dir, { recursive: true });
-  writeFileSync(join(dir, `v${version}.md`), mdFromMeta(baseMeta(id, version, overrides)), "utf-8");
+  const meta = baseMeta(id, version, overrides);
+  const namePrefix = String(meta.name).replace(/[<>:"/\\|?*]/g, "");
+  writeFileSync(join(dir, `${namePrefix}-v${version}.md`), mdFromMeta(meta), "utf-8");
 }
 
 beforeAll(() => {
@@ -163,10 +169,15 @@ describe("版本状态机", () => {
 describe("路径安全", () => {
   it("目录穿越与非法输入被拒绝", () => {
     const { repo } = makeServices();
-    expect(() => repo.resolveRecipePath("../evil", 1)).toThrowError(ToolError);
-    expect(() => repo.resolveRecipePath("a/b", 1)).toThrowError(ToolError);
-    expect(() => repo.resolveRecipePath("ok-id", 1.5)).toThrowError(ToolError);
-    expect(repo.resolveRecipePath("ok-id", 3)).toMatch(/[\\/]ok-id[\\/]v3\.md$/);
+    expect(() => repo.resolveRecipePath("../evil", 1, "测试菜")).toThrowError(ToolError);
+    expect(() => repo.resolveRecipePath("a/b", 1, "测试菜")).toThrowError(ToolError);
+    expect(() => repo.resolveRecipePath("ok-id", 1.5, "测试菜")).toThrowError(ToolError);
+    expect(repo.resolveRecipePath("ok-id", 3, "测试菜")).toMatch(/[\\/]ok-id[\\/]测试菜-v3\.md$/);
+  });
+
+  it("菜名里的文件系统非法字符在生成文件名时被过滤", () => {
+    const { repo } = makeServices();
+    expect(repo.resolveRecipePath("ok-id", 1, '测试/菜:名*')).toMatch(/[\\/]ok-id[\\/]测试菜名-v1\.md$/);
   });
 });
 
@@ -285,6 +296,18 @@ describe("aggregate_shopping_list", () => {
     ]) as { unresolved: Array<{ subject: string }> };
     expect(result.unresolved[0]!.subject).toBe("ghost");
   });
+
+  it("领域层拒绝非法份数与非有限换算数量", () => {
+    const { repo, catalog } = makeServices();
+    const result = aggregateShoppingList(repo, catalog, [
+      { recipe_id: "tomato-eggs", servings: Number.NaN },
+    ]) as { groups: unknown[]; unresolved: Array<{ reason: string }> };
+    expect(result.groups).toEqual([]);
+    expect(result.unresolved[0]!.reason).toContain("正有限数");
+
+    const conversion = toBaseUnit(catalog.byIdentifier("tomato")!, Number.POSITIVE_INFINITY, "g");
+    expect(conversion).toEqual({ ok: false, reason: "数量必须是非负有限数" });
+  });
 });
 
 describe("validate_meal_plan", () => {
@@ -297,7 +320,7 @@ describe("validate_meal_plan", () => {
     expect(result.errors.some((e) => e.code === "ALLERGEN_CONFLICT")).toBe(true);
   });
 
-  it("expected_scope 缺餐次报 MISSING_MEAL；重复餐位报 DUPLICATE", () => {
+  it("同一餐次允许多道不同菜，且仍能校验 expected_scope 完整性", () => {
     const { repo, catalog } = makeServices();
     const result = validateMealPlan(repo, catalog, {
       meals: [
@@ -310,7 +333,7 @@ describe("validate_meal_plan", () => {
         meal_types: ["dinner"],
       },
     }) as { errors: Array<{ code: string }> };
-    expect(result.errors.some((e) => e.code === "DUPLICATE_MEAL_SLOT")).toBe(true);
+    expect(result.errors).toEqual([]);
     expect(result.errors.some((e) => e.code === "MISSING_MEAL")).toBe(false);
     const withGap = validateMealPlan(repo, catalog, {
       meals: [
@@ -321,21 +344,57 @@ describe("validate_meal_plan", () => {
     expect(withGap.errors.some((e) => e.code === "MISSING_MEAL")).toBe(true);
   });
 
+  it("同一餐次重复同一道菜返回 DUPLICATE_RECIPE_IN_SLOT", () => {
+    const { repo, catalog } = makeServices();
+    const result = validateMealPlan(repo, catalog, {
+      meals: [
+        { date: "2026-08-25", meal_type: "dinner", recipe_id: "tomato-eggs", servings: 2 },
+        { date: "2026-08-25", meal_type: "dinner", recipe_id: "tomato-eggs", version: 2, servings: 2 },
+      ],
+    }) as { errors: Array<{ code: string }> };
+    expect(result.errors.map((error) => error.code)).toEqual(["DUPLICATE_RECIPE_IN_SLOT"]);
+  });
+
   it("硬预算：估价下限超预算为错误，区间骑墙为警告", () => {
     const { repo, catalog } = makeServices();
     const over = validateMealPlan(repo, catalog, {
       meals: [{ date: "2026-08-25", meal_type: "dinner", recipe_id: "pork-stew", servings: 2 }],
       constraints: { budget: { mode: "hard", amount: 10, currency: "CNY" } },
-      pricing: { total_range: { low: 12, high: 15 }, currency: "CNY" },
+      pricing: { total_range: { low: 12, high: 15 }, currency: "CNY", complete: true },
     }) as { errors: Array<{ code: string }>; warnings: Array<{ code: string }> };
     expect(over.errors.some((e) => e.code === "BUDGET_EXCEEDED")).toBe(true);
     const tight = validateMealPlan(repo, catalog, {
       meals: [{ date: "2026-08-25", meal_type: "dinner", recipe_id: "pork-stew", servings: 2 }],
       constraints: { budget: { mode: "hard", amount: 13, currency: "CNY" } },
-      pricing: { total_range: { low: 12, high: 15 }, currency: "CNY" },
+      pricing: { total_range: { low: 12, high: 15 }, currency: "CNY", complete: true },
     }) as { errors: Array<{ code: string }>; warnings: Array<{ code: string }> };
     expect(tight.errors).toEqual([]);
     expect(tight.warnings.some((w) => w.code === "BUDGET_TIGHT")).toBe(true);
+
+    const unverified = validateMealPlan(repo, catalog, {
+      meals: [{ date: "2026-08-25", meal_type: "dinner", recipe_id: "pork-stew", servings: 2 }],
+      constraints: { budget: { mode: "hard", amount: 100, currency: "CNY" } },
+      pricing: { total_range: { low: 3.55, high: 3.92 }, currency: "CNY", complete: false },
+    }) as { errors: Array<{ code: string }> };
+    expect(unverified.errors.some((e) => e.code === "BUDGET_UNVERIFIED")).toBe(true);
+
+    const referenceOnly = validateMealPlan(repo, catalog, {
+      meals: [{ date: "2026-08-25", meal_type: "dinner", recipe_id: "pork-stew", servings: 2 }],
+      constraints: { budget: { mode: "hard", amount: 100, currency: "CNY" } },
+      pricing: {
+        total_range: { low: 30, high: 50 },
+        currency: "CNY",
+        complete: true,
+        budget_status: "reference_only",
+      },
+    }) as { errors: Array<{ code: string }> };
+    expect(referenceOnly.errors.some((e) => e.code === "BUDGET_UNVERIFIED")).toBe(true);
+
+    const missing = validateMealPlan(repo, catalog, {
+      meals: [{ date: "2026-08-25", meal_type: "dinner", recipe_id: "pork-stew", servings: 2 }],
+      constraints: { budget: { mode: "hard", amount: 100, currency: "CNY" } },
+    }) as { errors: Array<{ code: string }> };
+    expect(missing.errors.some((e) => e.code === "BUDGET_UNVERIFIED")).toBe(true);
   });
 
   it("时长超限为硬错误", () => {
@@ -345,5 +404,64 @@ describe("validate_meal_plan", () => {
       constraints: { max_cooking_minutes: 30 },
     }) as { errors: Array<{ code: string }> };
     expect(result.errors.some((e) => e.code === "TIME_EXCEEDED")).toBe(true);
+  });
+});
+
+describe("render_meal_plan_html", () => {
+  it("输出自包含、可打印的 HTML，并转义不可信文本", () => {
+    const html = renderMealPlanHtml({
+      title: "两天餐单 <script>alert(1)</script>",
+      summary: { servings: "2 人份", constraints: ["无忌口"] },
+      menu: [
+        {
+          date: "2026-08-25",
+          meal_type: "晚餐",
+          dishes: [
+            { name: "番茄炒蛋", recipe_id: "tomato-eggs", version: 1, servings: 2, total_minutes: 15 },
+          ],
+        },
+      ],
+      recipes: [
+        {
+          name: "番茄炒蛋",
+          recipe_id: "tomato-eggs",
+          version: 1,
+          servings: 2,
+          total_minutes: 15,
+          ingredients: [{ name: "番茄", quantity: 400, unit: "g" }],
+          steps: ["番茄切块后炒制。"],
+        },
+      ],
+      shopping_groups: [
+        {
+          category: "蔬菜",
+          items: [{ name: "番茄", required: "400 g", to_buy: "400 g", used_in: ["番茄炒蛋"] }],
+        },
+      ],
+      pricing: {
+        requested_region: "全国",
+        currency: "CNY",
+        total_range: { low: 3, high: 5 },
+        budget_status: "reference_only",
+        coverage_summary: "1 项全国参考",
+        items: [
+          {
+            name: "番茄",
+            quantity: "400 g",
+            unit_price: "4–6 元/公斤",
+            subtotal: "1.6–2.4 元",
+            matched_region: "全国 / national",
+            basis: "全国批发均价",
+            source: "PFSC",
+            confidence: "low",
+          },
+        ],
+      },
+    });
+    expect(html).toContain("<!doctype html>");
+    expect(html).toContain("<h2>物价与预算</h2>");
+    expect(html).toContain("@media print");
+    expect(html).toContain("&lt;script&gt;alert(1)&lt;/script&gt;");
+    expect(html).not.toContain("<script>alert(1)</script>");
   });
 });

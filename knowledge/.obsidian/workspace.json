@@ -1,0 +1,230 @@
+{
+  "main": {
+    "id": "a30d9267af6e4518",
+    "type": "split",
+    "children": [
+      {
+        "id": "da059543a168a2e6",
+        "type": "tabs",
+        "children": [
+          {
+            "id": "0979ad6df0da8637",
+            "type": "leaf",
+            "state": {
+              "type": "markdown",
+              "state": {
+                "file": "menu/relations/tomato-eggs-garlic-broccoli-pair-v1.md",
+                "mode": "source",
+                "source": false
+              },
+              "icon": "lucide-file",
+              "title": "tomato-eggs-garlic-broccoli-pair-v1"
+            }
+          }
+        ]
+      }
+    ],
+    "direction": "vertical"
+  },
+  "left": {
+    "id": "35a359f81d4fecdf",
+    "type": "split",
+    "children": [
+      {
+        "id": "6b04b43af00363df",
+        "type": "tabs",
+        "children": [
+          {
+            "id": "e780a14996921261",
+            "type": "leaf",
+            "state": {
+              "type": "file-explorer",
+              "state": {
+                "sortOrder": "alphabetical",
+                "autoReveal": false,
+                "showSearch": false,
+                "searchQuery": ""
+              },
+              "icon": "lucide-folder-closed",
+              "title": "文件列表"
+            }
+          },
+          {
+            "id": "d4dcb8247eb1dd38",
+            "type": "leaf",
+            "state": {
+              "type": "search",
+              "state": {
+                "query": "",
+                "matchingCase": false,
+                "explainSearch": false,
+                "collapseAll": false,
+                "extraContext": false,
+                "sortOrder": "alphabetical"
+              },
+              "icon": "lucide-search",
+              "title": "搜索"
+            }
+          },
+          {
+            "id": "8020828e2728e5ca",
+            "type": "leaf",
+            "state": {
+              "type": "bookmarks",
+              "state": {
+                "showSearch": false,
+                "searchQuery": ""
+              },
+              "icon": "lucide-bookmark",
+              "title": "书签"
+            }
+          }
+        ]
+      }
+    ],
+    "direction": "horizontal",
+    "width": 300
+  },
+  "right": {
+    "id": "c19eebdcb37607f6",
+    "type": "split",
+    "children": [
+      {
+        "id": "51f5c7648d2564f7",
+        "type": "tabs",
+        "children": [
+          {
+            "id": "a3799d8813e6b52e",
+            "type": "leaf",
+            "state": {
+              "type": "backlink",
+              "state": {
+                "file": "menu/relations/tomato-eggs-garlic-broccoli-pair-v1.md",
+                "collapseAll": false,
+                "extraContext": false,
+                "sortOrder": "alphabetical",
+                "showSearch": false,
+                "searchQuery": "",
+                "backlinkCollapsed": false,
+                "unlinkedCollapsed": true
+              },
+              "icon": "links-coming-in",
+              "title": "反向链接"
+            }
+          },
+          {
+            "id": "c43328d7989db69d",
+            "type": "leaf",
+            "state": {
+              "type": "outgoing-link",
+              "state": {
+                "file": "menu/relations/tomato-eggs-garlic-broccoli-pair-v1.md",
+                "linksCollapsed": false,
+                "unlinkedCollapsed": true
+              },
+              "icon": "links-going-out",
+              "title": "出链"
+            }
+          },
+          {
+            "id": "050ef91a8ba00f5f",
+            "type": "leaf",
+            "state": {
+              "type": "tag",
+              "state": {
+                "sortOrder": "frequency",
+                "useHierarchy": true,
+                "showSearch": false,
+                "searchQuery": ""
+              },
+              "icon": "lucide-tags",
+              "title": "标签"
+            }
+          },
+          {
+            "id": "302ec8dda1cc2829",
+            "type": "leaf",
+            "state": {
+              "type": "all-properties",
+              "state": {
+                "sortOrder": "frequency",
+                "showSearch": false,
+                "searchQuery": ""
+              },
+              "icon": "lucide-archive",
+              "title": "添加笔记属性"
+            }
+          },
+          {
+            "id": "6686ae2cdc9c9986",
+            "type": "leaf",
+            "state": {
+              "type": "outline",
+              "state": {
+                "file": "menu/relations/tomato-eggs-garlic-broccoli-pair-v1.md",
+                "followCursor": false,
+                "showSearch": false,
+                "searchQuery": ""
+              },
+              "icon": "lucide-list",
+              "title": "大纲"
+            }
+          }
+        ]
+      }
+    ],
+    "direction": "horizontal",
+    "width": 219.9000244140625
+  },
+  "left-ribbon": {
+    "hiddenItems": {
+      "switcher:打开快速切换": false,
+      "graph:查看关系图谱": false,
+      "canvas:新建白板": false,
+      "daily-notes:打开/创建今天的日记": false,
+      "templates:插入模板": false,
+      "command-palette:打开命令面板": false,
+      "bases:新建数据库": false,
+      "realclaudian:Open Claudian": false
+    }
+  },
+  "active": "0979ad6df0da8637",
+  "lastOpenFiles": [
+    "menu/维护说明.md",
+    "menu/首页.md",
+    "menu/ingredients/ingredients.md",
+    "menu/prices/beijing-benchmark.md",
+    "menu/substitutions/smashed-cucumber-dried-chili-omit-v1.md",
+    "menu/substitutions/oat-porridge-sugar-omit-v1.md",
+    "menu/relations/mapo-tofu-choy-sum-pair-v1.md.tmp.20368.0bef4a00c215",
+    "menu/relations/tomato-eggs-garlic-broccoli-pair-v1.md.tmp.20368.e710b70bdade",
+    "menu/relations/steamed-chicken-choy-sum-pair-v1.md.tmp.20368.88b1dfcbb3d9",
+    "menu/substitutions/oat-porridge-sugar-omit-v1.md.tmp.20368.0ca969762d6d",
+    "menu/substitutions/smashed-cucumber-dried-chili-omit-v1.md.tmp.20368.d2537c699ea1",
+    "menu/substitutions/tomato-eggs-scallion-omit-v1.md.tmp.20368.f728f494a973",
+    "menu/substitutions/tomato-eggs-scallion-omit-v1.md.tmp.20368.acf8d423b2e9",
+    "menu/relations/garlic-broccoli-choy-sum-alternative-v1.md",
+    "menu/recipes/hot-sour-potatoes/酸辣土豆丝-v1.md",
+    "recipes/garlic-broccoli/v1.md",
+    "menu/首页.md.tmp.20368.23b5e88b3880",
+    "menu/recipes/oat-milk-porridge/燕麦牛奶粥-v1.md",
+    "menu/recipes/smashed-cucumber/拍黄瓜-v1.md",
+    "menu/recipes/cola-chicken-wings/可乐鸡翅-v1.md",
+    "menu/recipes/garlic-broccoli/蒜蓉西兰花-v1.md",
+    "menu/recipes/steamed-sea-bass/清蒸鲈鱼-v1.md",
+    "menu/recipes/scallion-egg-pancakes/葱香鸡蛋软饼-v1.md",
+    "menu/recipes/tomato-beef-stew/番茄牛腩-v1.md",
+    "menu/recipes/tomato-eggs/番茄炒蛋-v1.md",
+    "menu/recipes/kung-pao-chicken/宫保鸡丁-v1.md",
+    "menu/recipes/steamed-chicken-shiitake/香菇蒸鸡-v1.md",
+    "menu/recipes/mapo-tofu/麻婆豆腐-v1.md",
+    "menu/recipes/braised-pork/红烧肉-v1.md",
+    "menu/recipes/egg-fried-rice/蛋炒饭-v1.md",
+    "menu/recipes/winter-melon-rib-soup/冬瓜排骨汤-v1.md",
+    "menu/recipes/blanched-choy-sum/白灼菜心-v1.md",
+    "recipes/garlic-broccoli",
+    "recipes",
+    "menu/recipes/winter-melon-rib-soup/winter-melon-rib-soup-v1.md",
+    "menu/recipes/tomato-eggs/tomato-eggs-v1.md"
+  ]
+}

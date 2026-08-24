@@ -93,9 +93,31 @@ describe("场景 2：五天晚餐周期规划（PRD 场景 5/6/7）", () => {
       servings: 2,
     }));
 
+    // 最终餐单的每道菜都必须有目标份数食材和正文做法，不能只依赖搜索摘要。
+    for (const meal of plan) {
+      const detail = await call<{
+        raw_markdown: string;
+        scaled_ingredients: Array<{ id: string; quantity: number | null; unit: string | null }>;
+      }>("read_recipe", {
+        recipe_id: meal.recipe_id,
+        version: meal.version,
+        servings: meal.servings,
+        format: "both",
+      });
+      expect(detail.raw_markdown).toContain("## 做法");
+      expect(detail.scaled_ingredients.length).toBeGreaterThan(0);
+    }
+
     // 3) 采购汇总
     const shopping = await call<{
-      groups: Array<{ category: string; items: Array<{ ingredient_id: string | null; used_in: Array<{ recipe_id: string }> }> }>;
+      groups: Array<{
+        category: string;
+        items: Array<{
+          ingredient_id: string | null;
+          to_buy: { quantity: number | null; unit: string | null };
+          used_in: Array<{ recipe_id: string }>;
+        }>;
+      }>;
       warnings: Array<{ code: string }>;
     }>("aggregate_shopping_list", { items: plan });
     const allItems = shopping.groups.flatMap((g) => g.items);
@@ -115,24 +137,180 @@ describe("场景 2：五天晚餐周期规划（PRD 场景 5/6/7）", () => {
     expect(validation.errors).toEqual([]);
 
     // 5) 基准估价（benchmark 降级路径：quote 必须给出区间与来源）
+    const priceInputs = allItems
+      .filter(
+        (i) =>
+          i.ingredient_id !== null &&
+          i.to_buy.quantity !== null &&
+          i.to_buy.quantity > 0 &&
+          i.to_buy.unit !== null,
+      )
+      .slice(0, 5)
+      .map((i) => ({
+        ingredient: i.ingredient_id!,
+        quantity: i.to_buy.quantity!,
+        unit: i.to_buy.unit!,
+      }));
+    expect(priceInputs.length).toBeGreaterThan(0);
+
     const quote = await call<{
-      quotes: Array<{ ingredient_id: string; unit_price: { low: number; high: number }; source: { type: string } }>;
+      quotes: Array<{
+        ingredient_id: string;
+        requested_quantity: { quantity: number; unit: string } | null;
+        unit_price: { low: number; high: number };
+        total_price: { low: number; high: number } | null;
+        source: { type: string };
+      }>;
+      summary: {
+        requested_count: number;
+        priced_count: number;
+        exact_region_priced_count: number;
+        province_priced_count: number;
+        national_fallback_count: number;
+        cross_region_fallback_count: number;
+        budget_status: "verified" | "reference_only" | "incomplete";
+        complete: boolean;
+        priced_subtotal: { low: number; high: number } | null;
+      };
     }>("quote_ingredient_prices", {
       region: "北京",
-      ingredients: allItems
-        .filter((i) => i.ingredient_id)
-        .slice(0, 5)
-        .map((i) => ({ ingredient: i.ingredient_id! })),
+      channel: "supermarket",
+      ingredients: priceInputs,
     });
     expect(quote.quotes.length).toBeGreaterThan(0);
     for (const q of quote.quotes) {
+      expect(q.requested_quantity).not.toBeNull();
       expect(q.unit_price.low).toBeLessThanOrEqual(q.unit_price.high);
+      expect(q.total_price).not.toBeNull();
+      expect(q.total_price!.low).toBeLessThanOrEqual(q.total_price!.high);
       expect(["realtime", "cached", "benchmark"]).toContain(q.source.type);
     }
+    expect(quote.summary.requested_count).toBe(priceInputs.length);
+    expect(quote.summary.priced_count).toBe(quote.quotes.length);
+    expect(quote.summary.exact_region_priced_count).toBe(quote.quotes.length);
+    expect(quote.summary.province_priced_count).toBe(quote.quotes.length);
+    expect(quote.summary.national_fallback_count).toBe(0);
+    expect(quote.summary.cross_region_fallback_count).toBe(0);
+    expect(quote.summary.budget_status).toBe("reference_only");
+    expect(quote.summary.priced_subtotal).not.toBeNull();
+  });
+
+  it("1 人份同餐多菜：缩放食材、采购换算与校验保持一致", async () => {
+    const meals = [
+      { date: "2026-08-24", meal_type: "dinner", recipe_id: "tomato-eggs", version: 1, servings: 1 },
+      { date: "2026-08-24", meal_type: "dinner", recipe_id: "garlic-broccoli", version: 1, servings: 1 },
+    ];
+
+    const detail = await call<{
+      scaled_ingredients: Array<{ id: string; quantity: number | null; unit: string | null }>;
+    }>("read_recipe", { recipe_id: "tomato-eggs", version: 1, servings: 1, format: "parsed" });
+    const scaledTomato = detail.scaled_ingredients.find((item) => item.id === "tomato")!;
+    expect(scaledTomato).toMatchObject({ quantity: 200, unit: "g" });
+
+    const shopping = await call<{
+      groups: Array<{
+        items: Array<{
+          ingredient_id: string | null;
+          total_required: { quantity: number | null; unit: string | null };
+          to_buy: { quantity: number | null; unit: string | null };
+        }>;
+      }>;
+    }>("aggregate_shopping_list", { items: meals });
+    const tomato = shopping.groups
+      .flatMap((group) => group.items)
+      .find((item) => item.ingredient_id === "tomato")!;
+    expect(tomato.total_required).toEqual({ quantity: 0.4, unit: "斤" });
+    expect(tomato.to_buy).toEqual({ quantity: 0.4, unit: "斤" });
+    expect(scaledTomato.quantity! / 500).toBe(tomato.to_buy.quantity);
+
+    const validation = await call<{ errors: Array<{ code: string }> }>("validate_meal_plan", {
+      meals,
+      expected_scope: { dates: ["2026-08-24"], meal_types: ["dinner"] },
+    });
+    expect(validation.errors).toEqual([]);
   });
 });
 
 describe("场景 3：局部换菜（PRD 场景 8）", () => {
+  it("食材买不到时优先返回有正文依据的省略规则和整菜候选", async () => {
+    const result = await call<{
+      substitutions: Array<{ substitution_id: string; from_ingredient: string; mode: string }>;
+      recipe_alternatives: Array<{ recipe_id: string; relation_type: string }>;
+    }>("find_replacements", {
+      recipe_id: "tomato-eggs",
+      reason: "unavailable",
+      unavailable_ingredients: ["大葱"],
+      limit: 5,
+    });
+    expect(result.substitutions).toContainEqual(
+      expect.objectContaining({
+        substitution_id: "tomato-eggs-scallion-omit",
+        from_ingredient: "scallion",
+        mode: "omit",
+      }),
+    );
+    expect(result.recipe_alternatives.length).toBeGreaterThan(0);
+  });
+
+  it("把已确定结果渲染为包含菜单、菜谱、采购和价格表的 HTML", async () => {
+    const result = await call<{ filename: string; mime_type: string; html: string; artifact_path: string }>(
+      "render_meal_plan_html",
+      {
+        title: "今晚吃什么",
+        summary: { servings: "2 人份" },
+        menu: [
+          {
+            date: "2026-08-24",
+            meal_type: "晚餐",
+            dishes: [
+              { name: "番茄炒蛋", recipe_id: "tomato-eggs", version: 1, servings: 2, total_minutes: 15 },
+            ],
+          },
+        ],
+        recipes: [
+          {
+            name: "番茄炒蛋",
+            recipe_id: "tomato-eggs",
+            version: 1,
+            servings: 2,
+            total_minutes: 15,
+            ingredients: [{ name: "番茄", quantity: 400, unit: "g" }],
+            steps: ["番茄切块后按菜谱炒制。"],
+          },
+        ],
+        shopping_groups: [
+          { category: "蔬菜", items: [{ name: "番茄", required: "400 g", to_buy: "400 g" }] },
+        ],
+        pricing: {
+          requested_region: "全国",
+          currency: "CNY",
+          total_range: { low: 3, high: 5 },
+          budget_status: "reference_only",
+          coverage_summary: "全国参考 1 项",
+          items: [
+            {
+              name: "番茄",
+              quantity: "400 g",
+              unit_price: "4–6 元/公斤",
+              subtotal: "1.6–2.4 元",
+              matched_region: "全国 / national",
+              basis: "全国批发均价",
+              source: "PFSC",
+              confidence: "low",
+            },
+          ],
+        },
+      },
+    );
+    expect(result.filename).toMatch(/^meal-plan-[a-f0-9]+\.html$/);
+    expect(result.mime_type).toBe("text/html; charset=utf-8");
+    expect(result.html).toContain("<h2>计划菜单</h2>");
+    expect(result.html).toContain("<h2>菜谱</h2>");
+    expect(result.html).toContain("<h2>采购清单</h2>");
+    expect(result.html).toContain("<h2>物价与预算</h2>");
+    expect(result.artifact_path).toContain(result.filename);
+  });
+
   it("只换周三晚餐：其他餐次的采购量不受影响", async () => {
     const oldPlan = [
       { date: "2026-09-01", meal_type: "dinner", recipe_id: "tomato-eggs", servings: 2 },
@@ -167,6 +345,15 @@ describe("场景 3：局部换菜（PRD 场景 8）", () => {
     expect(before.has("broccoli")).toBe(true);
     expect(after.has("broccoli")).toBe(false);
     expect(after.has("sea_bass")).toBe(true);
+
+    // 换入菜谱必须能提供完整做法，保证修改后的产物仍可直接执行。
+    const replacement = await call<{ raw_markdown: string; scaled_ingredients: unknown[] }>("read_recipe", {
+      recipe_id: "steamed-sea-bass",
+      servings: 2,
+      format: "both",
+    });
+    expect(replacement.raw_markdown).toContain("## 做法");
+    expect(replacement.scaled_ingredients.length).toBeGreaterThan(0);
 
     // 新方案仍然通过校验
     const validation = await call<{ errors: Array<{ code: string }> }>("validate_meal_plan", {

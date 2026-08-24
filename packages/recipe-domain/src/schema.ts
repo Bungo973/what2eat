@@ -1,6 +1,7 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import Ajv, { type ValidateFunction } from "ajv";
+import { Ajv, type AnySchema, type ValidateFunction } from "ajv";
+import { dataInvalid } from "./errors.ts";
 import { specsDir } from "./paths.ts";
 
 export type ToolName =
@@ -9,7 +10,9 @@ export type ToolName =
   | "read_recipe"
   | "aggregate_shopping_list"
   | "validate_meal_plan"
-  | "quote_ingredient_prices";
+  | "quote_ingredient_prices"
+  | "find_replacements"
+  | "render_meal_plan_html";
 
 const TOOL_SCHEMA_FILE: Record<ToolName, string> = {
   search_recipes: "search-recipes",
@@ -18,6 +21,8 @@ const TOOL_SCHEMA_FILE: Record<ToolName, string> = {
   aggregate_shopping_list: "aggregate-shopping-list",
   validate_meal_plan: "validate-meal-plan",
   quote_ingredient_prices: "quote-ingredient-prices",
+  find_replacements: "find-replacements",
+  render_meal_plan_html: "render-meal-plan-html",
 };
 
 let ajvInstance: Ajv | null = null;
@@ -35,9 +40,11 @@ function getAjv(): Ajv {
     join(root, "knowledge", "recipe-frontmatter.schema.json"),
     join(root, "knowledge", "ingredient-catalog.schema.json"),
     join(root, "knowledge", "benchmark-prices.schema.json"),
+    join(root, "knowledge", "substitution.schema.json"),
+    join(root, "knowledge", "recipe-relation.schema.json"),
   ];
   for (const file of files) {
-    const schema = JSON.parse(readFileSync(file, "utf-8"));
+    const schema = JSON.parse(readFileSync(file, "utf-8")) as AnySchema & { $id?: string };
     ajv.addSchema(schema, schema.$id ?? file);
   }
   ajvInstance = ajv;
@@ -47,7 +54,10 @@ function getAjv(): Ajv {
 function compile(id: string): ValidateFunction {
   const cached = compiled.get(id);
   if (cached) return cached;
-  const validate = getAjv().getSchema(id)!;
+  const validate = getAjv().getSchema(id);
+  if (!validate) {
+    throw dataInvalid(`未找到契约 schema: ${id}`, { schema_id: id });
+  }
   compiled.set(id, validate);
   return validate;
 }
@@ -72,6 +82,18 @@ export function validateCatalog(catalog: unknown): { ok: true } | { ok: false; m
 
 export function validateBenchmarkPrices(doc: unknown): { ok: true } | { ok: false; message: string } {
   const validate = compile("benchmark-prices.schema.json");
+  if (validate(doc)) return { ok: true };
+  return { ok: false, message: formatErrors(validate) };
+}
+
+export function validateSubstitution(doc: unknown): { ok: true } | { ok: false; message: string } {
+  const validate = compile("substitution.schema.json");
+  if (validate(doc)) return { ok: true };
+  return { ok: false, message: formatErrors(validate) };
+}
+
+export function validateRecipeRelation(doc: unknown): { ok: true } | { ok: false; message: string } {
+  const validate = compile("recipe-relation.schema.json");
   if (validate(doc)) return { ok: true };
   return { ok: false, message: formatErrors(validate) };
 }

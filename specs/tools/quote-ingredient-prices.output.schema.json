@@ -15,8 +15,18 @@
         "properties": {
           "ingredient_id": { "type": "string" },
           "name": { "type": "string" },
+          "requested_quantity": {
+            "type": ["object", "null"],
+            "description": "调用者请求估价的采购数量与原单位；与单价计价单位分离，避免把 0.7 斤误读为 0.7 公斤",
+            "required": ["quantity", "unit"],
+            "properties": {
+              "quantity": { "type": "number", "exclusiveMinimum": 0 },
+              "unit": { "enum": ["g", "kg", "ml", "l", "piece", "两", "斤"] }
+            },
+            "additionalProperties": false
+          },
           "quantity": { "type": ["number", "null"] },
-          "unit": { "type": "string", "description": "单价计价单位，如 斤/500g/piece" },
+          "unit": { "type": "string", "description": "单价计价单位，如 斤/公斤/piece；不是 requested_quantity 的采购单位" },
           "unit_price": { "$ref": "https://what2eat.dev/schemas/common.schema.json#/$defs/price_range" },
           "total_price": {
             "type": ["object", "null"],
@@ -41,7 +51,20 @@
             "additionalProperties": false
           },
           "data_time": { "type": ["string", "null"], "description": "数据本身的日期/时间（ISO 8601 日期或日期时间）" },
-          "confidence": { "$ref": "https://what2eat.dev/schemas/common.schema.json#/$defs/confidence" }
+          "confidence": { "$ref": "https://what2eat.dev/schemas/common.schema.json#/$defs/confidence" },
+          "requested_region": { "type": "string", "description": "调用者请求的地区" },
+          "matched_region": { "type": "string", "description": "实际报价覆盖的地区；可能为省份或全国" },
+          "region_code": { "type": ["string", "null"], "description": "实际报价地区的省级行政区代码；全国时为 null" },
+          "region_scope": { "enum": ["market", "city", "province", "national", "unknown"] },
+          "region_match": { "type": "boolean", "description": "实际报价是否至少覆盖请求地区所在省份" },
+          "is_fallback": { "type": "boolean", "description": "是否使用了跨地区回退" },
+          "price_basis": {
+            "enum": ["wholesale_observed", "national_wholesale_average", "retail_estimate", "unknown"],
+            "description": "价格口径"
+          },
+          "budget_usable": { "enum": ["verified", "reference_only"], "description": "该报价用于预算时的性质" },
+          "market_count": { "type": ["integer", "null"], "minimum": 1, "description": "参与聚合的市场数" },
+          "aggregation_method": { "type": ["string", "null"], "description": "多市场报价聚合方法" }
         },
         "additionalProperties": false
       }
@@ -61,6 +84,34 @@
     "warnings": {
       "type": "array",
       "items": { "$ref": "https://what2eat.dev/schemas/common.schema.json#/$defs/warning" }
+    },
+    "summary": {
+      "type": "object",
+      "description": "服务端确定性覆盖率与小计；complete 表示全部请求项均有可换算总价且至少匹配请求地区所在省份，预算性质另看 budget_status",
+      "required": ["requested_count", "quoted_count", "priced_count", "exact_region_priced_count", "complete", "priced_subtotal"],
+      "properties": {
+        "requested_count": { "type": "integer", "minimum": 1 },
+        "quoted_count": { "type": "integer", "minimum": 0 },
+        "priced_count": { "type": "integer", "minimum": 0 },
+        "exact_region_priced_count": { "type": "integer", "minimum": 0, "description": "实际报价地区名称与请求地区直接匹配的可计总价项数" },
+        "province_priced_count": { "type": "integer", "minimum": 0, "description": "实际报价至少匹配请求地点所属省份的可计总价项数，包含更精确的城市或市场报价" },
+        "national_fallback_count": { "type": "integer", "minimum": 0 },
+        "cross_region_fallback_count": { "type": "integer", "minimum": 0, "description": "使用其他省市基准价作参考的可计总价项数" },
+        "benchmark_priced_count": { "type": "integer", "minimum": 0 },
+        "unmatched_count": { "type": "integer", "minimum": 0 },
+        "budget_status": { "enum": ["verified", "reference_only", "incomplete"] },
+        "complete": { "type": "boolean" },
+        "priced_subtotal": {
+          "type": ["object", "null"],
+          "required": ["low", "high"],
+          "properties": {
+            "low": { "type": "number", "minimum": 0 },
+            "high": { "type": "number", "minimum": 0 }
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
     }
   },
   "additionalProperties": false

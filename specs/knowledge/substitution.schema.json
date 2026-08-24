@@ -1,0 +1,101 @@
+{
+  "$id": "substitution.schema.json",
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "食材替换规则契约",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "substitution_id",
+    "version",
+    "status",
+    "from_ingredient",
+    "to_ingredient",
+    "mode",
+    "valid_context",
+    "step_changes",
+    "allergen_changes",
+    "effects",
+    "evidence"
+  ],
+  "properties": {
+    "schema_version": { "const": 1 },
+    "substitution_id": { "type": "string", "pattern": "^[a-z][a-z0-9-]*$", "maxLength": 96 },
+    "version": { "type": "integer", "minimum": 1 },
+    "status": { "enum": ["draft", "published", "archived"] },
+    "from_ingredient": { "type": "string", "pattern": "^[a-z][a-z0-9_]*$" },
+    "to_ingredient": { "type": ["string", "null"], "pattern": "^[a-z][a-z0-9_]*$" },
+    "mode": { "enum": ["replace", "omit"] },
+    "valid_context": {
+      "type": "object",
+      "required": ["roles", "techniques", "recipe_ids"],
+      "properties": {
+        "roles": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": { "enum": ["primary", "supporting", "seasoning", "garnish", "cooking_medium"] }
+        },
+        "techniques": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": { "type": "string", "pattern": "^[a-z][a-z0-9-]*$" }
+        },
+        "recipe_ids": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": { "$ref": "https://what2eat.dev/schemas/common.schema.json#/$defs/recipe_id" }
+        }
+      },
+      "additionalProperties": false
+    },
+    "ratio": {
+      "oneOf": [
+        { "type": "null" },
+        {
+          "type": "object",
+          "required": ["factor"],
+          "properties": {
+            "factor": { "type": "number", "exclusiveMinimum": 0 },
+            "notes": { "type": "string", "maxLength": 160 }
+          },
+          "additionalProperties": false
+        }
+      ]
+    },
+    "step_changes": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "type": "string", "minLength": 1, "maxLength": 240 }
+    },
+    "allergen_changes": {
+      "type": "object",
+      "required": ["add", "remove"],
+      "properties": {
+        "add": { "type": "array", "uniqueItems": true, "items": { "type": "string", "pattern": "^[a-z_]+$" } },
+        "remove": { "type": "array", "uniqueItems": true, "items": { "type": "string", "pattern": "^[a-z_]+$" } }
+      },
+      "additionalProperties": false
+    },
+    "effects": {
+      "type": "object",
+      "required": ["flavor", "texture", "time_delta_minutes"],
+      "properties": {
+        "flavor": { "type": "string", "minLength": 1, "maxLength": 160 },
+        "texture": { "type": "string", "minLength": 1, "maxLength": 160 },
+        "time_delta_minutes": { "type": "integer", "minimum": -600, "maximum": 600 }
+      },
+      "additionalProperties": false
+    },
+    "evidence": {
+      "type": "object",
+      "required": ["type", "source"],
+      "properties": {
+        "type": { "enum": ["recipe_source", "maintainer_review", "external_reference"] },
+        "source": { "type": ["string", "null"], "maxLength": 500 }
+      },
+      "additionalProperties": false
+    },
+    "published_at": { "type": "string", "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$" },
+    "notes": { "type": "string", "maxLength": 300 }
+  },
+  "additionalProperties": false
+}

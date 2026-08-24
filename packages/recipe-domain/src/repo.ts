@@ -10,21 +10,62 @@ import { dirname, isAbsolute, join, relative, resolve } from "node:path";
 import { stringify as yamlStringify } from "yaml";
 import { parseMarkdown } from "./markdown.ts";
 import { dataInvalid, invalidArgument, notFound } from "./errors.ts";
-import { validateCatalog, validateFrontmatter } from "./schema.ts";
+import {
+  validateCatalog,
+  validateFrontmatter,
+  validateRecipeRelation,
+  validateSubstitution,
+} from "./schema.ts";
 import type {
   IngredientCatalog,
+  RecipeRelation,
   RecipeDocument,
   RecipeMeta,
+  RecipeStatus,
   RecipeState,
+  SubstitutionRule,
 } from "./types.ts";
 
 const RECIPE_ID_RE = /^[a-z0-9][a-z0-9-]*$/;
+
+/** Windows/大多数文件系统不允许作为文件名的字符。 */
+const FILENAME_UNSAFE_RE = /[<>:"/\\|?*]/g;
+
+/** 由 frontmatter name 派生文件名前缀：过滤非法字符、去除首尾空白，结果为空则拒绝。 */
+function sanitizeFilenameSegment(name: string, subject: string): string {
+  const cleaned = name.trim().replace(FILENAME_UNSAFE_RE, "").replace(/\.+$/, "");
+  if (!cleaned) {
+    throw dataInvalid(`菜谱名称清理为合法文件名后为空: ${name}`, { subject });
+  }
+  return cleaned;
+}
+
+/** 正文必须包含的三段式结构（与现有全部已发布菜谱的实际写法一致）。 */
+const REQUIRED_BODY_SECTIONS = ["做法", "替换建议", "储存与安全"];
+
+/** 按 `## 标题` 切分正文，返回标题到其后内容（不含标题行）的映射。 */
+function extractSections(body: string): Map<string, string> {
+  const sections = new Map<string, string[]>();
+  let current: string | null = null;
+  for (const line of body.split(/\r?\n/)) {
+    const heading = /^##\s+(.+)$/.exec(line.trim());
+    if (heading) {
+      current = heading[1]!.trim();
+      if (!sections.has(current)) sections.set(current, []);
+      continue;
+    }
+    if (current) sections.get(current)!.push(line);
+  }
+  return new Map([...sections].map(([name, lines]) => [name, lines.join("\n")]));
+}
 
 /**
  * Markdown 菜谱知识库仓储：扫描 recipes/ 与 drafts/，实现版本状态机与受控路径解析。
  *
  * 版本状态机（PRD §9.1）：
- * - recipes/<id>/vN.md 为非草稿版本，不可变；
+ * - recipes/<id>/<菜名>-vN.md 为非草稿版本，不可变（文件夹名仍是稳定的 recipe_id，
+ *   文件名前缀改用 frontmatter 里的中文 name，避免 Obsidian 图谱/快速切换器里
+ *   全部显示成同名英文 slug 或同名 "v1" 节点）；
  * - 当前状态由最高非草稿版本决定；
  * - drafts/*.md 为草稿，不进入公共读取范围。
  */
@@ -33,6 +74,8 @@ export class KnowledgeRepo {
   private recipesCache: Map<string, Map<number, RecipeDocument>> | null = null;
   private draftsCache: RecipeDocument[] | null = null;
   private catalogCache: IngredientCatalog | null = null;
+  private substitutionsCache: SubstitutionRule[] | null = null;
+  private relationsCache: RecipeRelation[] | null = null;
 
   constructor(knowledgeDir: string) {
     this.knowledgeDir = knowledgeDir;
@@ -46,6 +89,14 @@ export class KnowledgeRepo {
     return join(this.knowledgeDir, "drafts");
   }
 
+  get substitutionsRoot(): string {
+    return join(this.knowledgeDir, "substitutions");
+  }
+
+  get relationsRoot(): string {
+    return join(this.knowledgeDir, "relations");
+  }
+
   /** 扫描全部菜谱与草稿，带结构校验。 */
   scan(): Map<string, Map<number, RecipeDocument>> {
     if (this.recipesCache) return this.recipesCache;
@@ -57,9 +108,9 @@ export class KnowledgeRepo {
           throw dataInvalid(`菜谱目录名不合法: ${dir.name}`, { subject: dir.name });
         }
         for (const file of readdirSync(join(this.recipesRoot, dir.name))) {
-          const versionMatch = /^v(\d+)\.md$/.exec(file);
+          const versionMatch = /^(.+)-v(\d+)\.md$/.exec(file);
           if (!versionMatch) {
-            throw dataInvalid(`菜谱文件名必须形如 vN.md: ${dir.name}/${file}`);
+            throw dataInvalid(`菜谱文件名必须形如 <菜名>-vN.md: ${dir.name}/${file}`);
           }
           const doc = this.loadDocument(
             join(this.recipesRoot, dir.name, file),
@@ -72,9 +123,16 @@ export class KnowledgeRepo {
               { subject: `recipes/${dir.name}/${file}` },
             );
           }
-          if (meta.version !== Number(versionMatch[1])) {
+          if (meta.version !== Number(versionMatch[2])) {
             throw dataInvalid(
-              `frontmatter version (${meta.version}) 与文件名 v${versionMatch[1]} 不一致`,
+              `frontmatter version (${meta.version}) 与文件名 ${file} 不一致`,
+              { subject: `recipes/${dir.name}/${file}` },
+            );
+          }
+          const expectedPrefix = sanitizeFilenameSegment(meta.name, `recipes/${dir.name}/${file}`);
+          if (versionMatch[1] !== expectedPrefix) {
+            throw dataInvalid(
+              `文件名前缀 (${versionMatch[1]}) 与 frontmatter name 派生的文件名 (${expectedPrefix}) 不一致: recipes/${dir.name}/${file}`,
               { subject: `recipes/${dir.name}/${file}` },
             );
           }
@@ -121,7 +179,7 @@ export class KnowledgeRepo {
     if (this.catalogCache) return this.catalogCache;
     const dir = join(this.knowledgeDir, "ingredients");
     if (!existsSync(dir)) {
-      throw notFound("食材目录缺失: knowledge/ingredients/");
+      throw notFound("食材目录缺失: <knowledge-root>/ingredients/");
     }
     const files = readdirSync(dir).filter((f) => f.endsWith(".md"));
     if (files.length === 0) {
@@ -142,6 +200,87 @@ export class KnowledgeRepo {
     }
     this.catalogCache = catalog;
     return catalog;
+  }
+
+  loadSubstitutions(): SubstitutionRule[] {
+    if (this.substitutionsCache) return this.substitutionsCache;
+    if (!existsSync(this.substitutionsRoot)) {
+      this.substitutionsCache = [];
+      return [];
+    }
+    const out: SubstitutionRule[] = [];
+    const seen = new Set<string>();
+    for (const file of readdirSync(this.substitutionsRoot).filter((name) => name.endsWith(".md"))) {
+      const match = /^([a-z][a-z0-9-]*)-v(\d+)\.md$/.exec(file);
+      if (!match) throw dataInvalid(`替换规则文件名必须形如 <id>-vN.md: ${file}`);
+      const raw = this.loadRawDocument(join(this.substitutionsRoot, file), `substitutions/${file}`);
+      const check = validateSubstitution(raw.meta);
+      if (!check.ok) {
+        throw dataInvalid(`替换规则 schema 校验失败: ${check.message}`, { subject: file });
+      }
+      const rule = raw.meta as SubstitutionRule;
+      if (rule.substitution_id !== match[1] || rule.version !== Number(match[2])) {
+        throw dataInvalid(`替换规则 ID/版本与文件名不一致: ${file}`, { subject: file });
+      }
+      if (rule.mode === "omit" && rule.to_ingredient !== null) {
+        throw dataInvalid(`omit 规则的 to_ingredient 必须为 null: ${file}`, { subject: file });
+      }
+      if (rule.mode === "replace" && rule.to_ingredient === null) {
+        throw dataInvalid(`replace 规则必须提供 to_ingredient: ${file}`, { subject: file });
+      }
+      if (rule.status !== "draft" && !rule.published_at) {
+        throw dataInvalid(`已发布/归档替换规则缺少 published_at: ${file}`, { subject: file });
+      }
+      const key = `${rule.substitution_id}@${rule.version}`;
+      if (seen.has(key)) throw dataInvalid(`替换规则版本重复: ${key}`);
+      seen.add(key);
+      out.push(rule);
+    }
+    this.substitutionsCache = out;
+    return out;
+  }
+
+  listPublishedSubstitutions(): SubstitutionRule[] {
+    return latestPublished(this.loadSubstitutions(), (item) => item.substitution_id);
+  }
+
+  loadRecipeRelations(): RecipeRelation[] {
+    if (this.relationsCache) return this.relationsCache;
+    if (!existsSync(this.relationsRoot)) {
+      this.relationsCache = [];
+      return [];
+    }
+    const out: RecipeRelation[] = [];
+    const seen = new Set<string>();
+    for (const file of readdirSync(this.relationsRoot).filter((name) => name.endsWith(".md"))) {
+      const match = /^([a-z][a-z0-9-]*)-v(\d+)\.md$/.exec(file);
+      if (!match) throw dataInvalid(`菜谱关系文件名必须形如 <id>-vN.md: ${file}`);
+      const raw = this.loadRawDocument(join(this.relationsRoot, file), `relations/${file}`);
+      const check = validateRecipeRelation(raw.meta);
+      if (!check.ok) {
+        throw dataInvalid(`菜谱关系 schema 校验失败: ${check.message}`, { subject: file });
+      }
+      const relation = raw.meta as RecipeRelation;
+      if (relation.relation_id !== match[1] || relation.version !== Number(match[2])) {
+        throw dataInvalid(`菜谱关系 ID/版本与文件名不一致: ${file}`, { subject: file });
+      }
+      if (relation.source_recipe_id === relation.target_recipe_id) {
+        throw dataInvalid(`菜谱关系不能指向自身: ${file}`, { subject: file });
+      }
+      if (relation.status !== "draft" && !relation.published_at) {
+        throw dataInvalid(`已发布/归档菜谱关系缺少 published_at: ${file}`, { subject: file });
+      }
+      const key = `${relation.relation_id}@${relation.version}`;
+      if (seen.has(key)) throw dataInvalid(`菜谱关系版本重复: ${key}`);
+      seen.add(key);
+      out.push(relation);
+    }
+    this.relationsCache = out;
+    return out;
+  }
+
+  listPublishedRecipeRelations(): RecipeRelation[] {
+    return latestPublished(this.loadRecipeRelations(), (item) => item.relation_id);
   }
 
   /** 某菜谱的当前状态：最高非草稿版本决定。 */
@@ -165,13 +304,14 @@ export class KnowledgeRepo {
   }
 
   /**
-   * 受控路径解析：只允许 recipe_id 目录与 vN.md 文件名，杜绝目录穿越。
+   * 受控路径解析：只允许 recipe_id 目录与 <菜名>-vN.md 文件名，杜绝目录穿越。
    */
-  resolveRecipePath(recipeId: string, version: number): string {
+  resolveRecipePath(recipeId: string, version: number, name: string): string {
     if (!RECIPE_ID_RE.test(recipeId) || !Number.isInteger(version) || version < 1) {
       throw invalidArgument("recipe_id 或 version 不合法", { recipe_id: recipeId, version });
     }
-    const path = resolve(this.recipesRoot, recipeId, `v${version}.md`);
+    const filenamePrefix = sanitizeFilenameSegment(name, recipeId);
+    const path = resolve(this.recipesRoot, recipeId, `${filenamePrefix}-v${version}.md`);
     const rel = relative(resolve(this.recipesRoot), path);
     if (rel === "" || rel.startsWith("..") || isAbsolute(rel)) {
       throw invalidArgument("路径解析越界", { recipe_id: recipeId });
@@ -208,7 +348,7 @@ export class KnowledgeRepo {
   }
 
   writeRecipe(doc: RecipeDocument): void {
-    const path = this.resolveRecipePath(doc.meta.recipe_id, doc.meta.version);
+    const path = this.resolveRecipePath(doc.meta.recipe_id, doc.meta.version, doc.meta.name);
     mkdirSync(dirname(path), { recursive: true });
     writeFileSync(path, serializeDoc(doc), "utf-8");
     this.invalidate();
@@ -239,6 +379,8 @@ export class KnowledgeRepo {
     this.recipesCache = null;
     this.draftsCache = null;
     this.catalogCache = null;
+    this.substitutionsCache = null;
+    this.relationsCache = null;
   }
 
   private loadDocument(absPath: string, relPath: string): { meta: RecipeMeta; body: string; relPath: string } {
@@ -248,8 +390,12 @@ export class KnowledgeRepo {
       throw dataInvalid(`${relPath}: frontmatter 校验失败: ${result.message}`, { subject: relPath });
     }
     const meta = raw.meta as RecipeMeta;
-    if (!/^[^#]*##\s*做法/m.test(raw.body) || !/\S/.test(raw.body)) {
-      throw dataInvalid(`${relPath}: 正文必须包含非空"做法"章节`, { subject: relPath });
+    const sections = extractSections(raw.body);
+    for (const name of REQUIRED_BODY_SECTIONS) {
+      const content = sections.get(name);
+      if (content === undefined || !/\S/.test(content)) {
+        throw dataInvalid(`${relPath}: 正文必须包含非空"${name}"章节`, { subject: relPath });
+      }
     }
     return { meta, body: raw.body, relPath };
   }
@@ -268,6 +414,19 @@ export class KnowledgeRepo {
       throw dataInvalid(`${relPath}: ${(e as Error).message}`, { subject: relPath });
     }
   }
+}
+
+function latestPublished<T extends { version: number; status: RecipeStatus }>(
+  items: T[],
+  idOf: (item: T) => string,
+): T[] {
+  const latest = new Map<string, T>();
+  for (const item of items) {
+    const id = idOf(item);
+    const previous = latest.get(id);
+    if (!previous || item.version > previous.version) latest.set(id, item);
+  }
+  return [...latest.values()].filter((item) => item.status === "published");
 }
 
 function serializeDoc(doc: RecipeDocument): string {

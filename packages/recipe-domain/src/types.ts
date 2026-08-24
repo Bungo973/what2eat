@@ -68,6 +68,7 @@ export interface CatalogIngredient {
   price_query_terms: Array<{
     source: "xinfadi" | "pfsc" | "jiangnan";
     terms: string[];
+    external_id?: string;
     preferred_specs?: string[];
     unit_hint?: "斤" | "公斤";
   }>;
@@ -78,6 +79,51 @@ export interface IngredientCatalog {
   catalog_version: number;
   updated_at?: string;
   ingredients: CatalogIngredient[];
+}
+
+export type IngredientRole =
+  | "primary"
+  | "supporting"
+  | "seasoning"
+  | "garnish"
+  | "cooking_medium";
+
+export interface SubstitutionRule {
+  schema_version: 1;
+  substitution_id: string;
+  version: number;
+  status: RecipeStatus;
+  from_ingredient: string;
+  to_ingredient: string | null;
+  mode: "replace" | "omit";
+  valid_context: {
+    roles: IngredientRole[];
+    techniques: string[];
+    recipe_ids: string[];
+  };
+  ratio?: { factor: number; notes?: string } | null;
+  step_changes: string[];
+  allergen_changes: { add: string[]; remove: string[] };
+  effects: { flavor: string; texture: string; time_delta_minutes: number };
+  evidence: {
+    type: "recipe_source" | "maintainer_review" | "external_reference";
+    source: string | null;
+  };
+  published_at?: string;
+  notes?: string;
+}
+
+export interface RecipeRelation {
+  schema_version: 1;
+  relation_id: string;
+  version: number;
+  status: RecipeStatus;
+  type: "variant_of" | "alternative_to" | "pairs_with" | "uses_leftover_from";
+  source_recipe_id: string;
+  target_recipe_id: string;
+  reason: string;
+  conditions?: { meal_types?: MealType[] };
+  published_at?: string;
 }
 
 export interface Warning {

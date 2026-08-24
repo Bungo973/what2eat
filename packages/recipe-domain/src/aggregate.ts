@@ -44,6 +44,10 @@ export function aggregateShoppingList(
   const accumulated = new Map<string, AccumulatedEntry>();
 
   for (const item of items) {
+    if (!Number.isFinite(item.servings) || item.servings <= 0) {
+      unresolved.push({ subject: item.recipe_id, reason: "份数必须是正有限数" });
+      continue;
+    }
     let doc;
     try {
       doc = repo.getRecipe(item.recipe_id, item.version);
@@ -120,7 +124,7 @@ export function aggregateShoppingList(
         continue;
       }
       entry.baseUnit = conv.baseUnit;
-      entry.baseQuantity += conv.value!;
+      entry.baseQuantity += conv.value;
     }
   }
 
@@ -147,9 +151,9 @@ export function aggregateShoppingList(
     }
     const prev = ownedBase.get(cat.id);
     if (prev && prev.baseUnit === conv.baseUnit) {
-      prev.quantity += conv.value!;
+      prev.quantity += conv.value;
     } else {
-      ownedBase.set(cat.id, { quantity: conv.value!, baseUnit: conv.baseUnit! });
+      ownedBase.set(cat.id, { quantity: conv.value, baseUnit: conv.baseUnit });
     }
   }
 
@@ -163,14 +167,15 @@ export function aggregateShoppingList(
     let remaining = entry.baseQuantity;
     if (ownedQty && entry.baseUnit === ownedQty.baseUnit && entry.convertible) {
       remaining = Math.max(0, entry.baseQuantity - ownedQty.quantity);
+      const purchaseUnit = entry.ingredient?.default_purchase_unit ?? ownedQty.baseUnit;
       const ownedDisplay = fromBaseUnit(
         entry.ingredient,
         Math.min(entry.baseQuantity, ownedQty.quantity),
         ownedQty.baseUnit,
-        entry.ingredient?.default_purchase_unit ?? ownedQty.baseUnit,
+        purchaseUnit,
       );
       if (ownedDisplay.ok) {
-        ownedPart = { quantity: round2(ownedDisplay.value!), unit: entry.ingredient!.default_purchase_unit };
+        ownedPart = { quantity: round2(ownedDisplay.value), unit: purchaseUnit };
       } else {
         ownedPart = { quantity: round2(Math.min(entry.baseQuantity, ownedQty.quantity)), unit: ownedQty.baseUnit };
       }
@@ -183,10 +188,10 @@ export function aggregateShoppingList(
       const totalConv = fromBaseUnit(entry.ingredient, entry.baseQuantity, entry.baseUnit, purchaseUnit);
       const buyConv = fromBaseUnit(entry.ingredient, remaining, entry.baseUnit, purchaseUnit);
       totalDisplay = totalConv.ok
-        ? { quantity: round2(totalConv.value!), unit: purchaseUnit }
+        ? { quantity: round2(totalConv.value), unit: purchaseUnit }
         : { quantity: round2(entry.baseQuantity), unit: entry.baseUnit };
       buyDisplay = buyConv.ok
-        ? { quantity: round2(buyConv.value!), unit: purchaseUnit }
+        ? { quantity: round2(buyConv.value), unit: purchaseUnit }
         : { quantity: round2(remaining), unit: entry.baseUnit };
     } else {
       totalDisplay = { quantity: null, unit: null };

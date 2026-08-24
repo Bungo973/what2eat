@@ -51,7 +51,6 @@ export class PfscProvider implements PriceProvider {
   }
 
   async quote(items: ProviderQueryItem[], region: string): Promise<ProviderQuote[]> {
-    void region;
     const wanted = new Set(items.map((i) => i.ingredient_id));
     const records = await this.fetchLatest();
     if (records.length === 0) {
@@ -79,6 +78,16 @@ export class PfscProvider implements PriceProvider {
         source: { type: "realtime", name: "pfsc.agri.cn", url: this.endpoint },
         data_time: date || null,
         confidence: "low",
+        requested_region: region,
+        matched_region: "全国",
+        region_code: null,
+        region_scope: "national",
+        region_match: false,
+        is_fallback: true,
+        price_basis: "national_wholesale_average",
+        budget_usable: "reference_only",
+        market_count: null,
+        aggregation_method: "daily_report_average_plus_minus_5_percent",
         warnings: ["全国平均价（非城市价），由均价按 ±5% 构造区间，滞后约 1-2 天"],
       });
     }

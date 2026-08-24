@@ -25,15 +25,15 @@ export class PriceCache {
   public hits = 0;
   public misses = 0;
 
-  get(region: string, ingredientId: string): ProviderQuote | null {
-    const entry = this.entries.get(this.key(region, ingredientId));
+  get(region: string, ingredientId: string, channel?: string | null): ProviderQuote | null {
+    const entry = this.entries.get(this.key(region, ingredientId, channel));
     if (!entry) {
       this.misses++;
       return null;
     }
     const ttlMs = (CATEGORY_TTL_HOURS[entry.category] ?? 24) * 3600 * 1000;
     if (Date.now() - entry.fetchedAt > ttlMs) {
-      this.entries.delete(this.key(region, ingredientId));
+      this.entries.delete(this.key(region, ingredientId, channel));
       this.misses++;
       return null;
     }
@@ -41,8 +41,8 @@ export class PriceCache {
     return { ...entry.quote, source: { ...entry.quote.source, type: "cached" } };
   }
 
-  set(region: string, ingredientId: string, category: string, quote: ProviderQuote): void {
-    this.entries.set(this.key(region, ingredientId), {
+  set(region: string, ingredientId: string, category: string, quote: ProviderQuote, channel?: string | null): void {
+    this.entries.set(this.key(region, ingredientId, channel), {
       quote,
       category,
       fetchedAt: Date.now(),
@@ -55,7 +55,7 @@ export class PriceCache {
     this.misses = 0;
   }
 
-  private key(region: string, ingredientId: string): string {
-    return `${region}|${ingredientId}`;
+  private key(region: string, ingredientId: string, channel?: string | null): string {
+    return `${region}|${channel ?? "default"}|${ingredientId}`;
   }
 }

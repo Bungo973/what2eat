@@ -29,7 +29,7 @@ function loadSchemas(): Map<string, ValidateFunction> {
 describe("specs 契约自检", () => {
   const schemas = loadSchemas();
 
-  it("覆盖六个工具的输入输出 schema 与共享契约", () => {
+  it("覆盖八个工具的输入输出 schema 与共享契约", () => {
     const expected = [
       "common.schema.json",
       "error.schema.json",
@@ -45,15 +45,21 @@ describe("specs 契约自检", () => {
       "validate-meal-plan.output.schema.json",
       "quote-ingredient-prices.input.schema.json",
       "quote-ingredient-prices.output.schema.json",
+      "find-replacements.input.schema.json",
+      "find-replacements.output.schema.json",
+      "render-meal-plan-html.input.schema.json",
+      "render-meal-plan-html.output.schema.json",
       "recipe-frontmatter.schema.json",
       "ingredient-catalog.schema.json",
       "benchmark-prices.schema.json",
+      "substitution.schema.json",
+      "recipe-relation.schema.json",
     ];
     expect([...schemas.keys()].sort()).toEqual([...expected].sort());
   });
 
   it("所有 schema 均可被 ajv 编译", () => {
-    expect(schemas.size).toBe(17);
+    expect(schemas.size).toBe(23);
     for (const [file, validate] of schemas) {
       expect(typeof validate, `${file} 应编译为校验函数`).toBe("function");
     }
@@ -112,6 +118,7 @@ describe("specs 契约自检", () => {
   it("search_recipes 输入：拒绝未知字段与超界 limit", () => {
     const validate = schemas.get("search-recipes.input.schema.json")!;
     expect(validate({ query: "番茄", limit: 10 })).toBe(true);
+    expect(validate({ include_ingredients: ["西红柿"] })).toBe(true);
     expect(validate({ query: "番茄", limit: 999 })).toBe(false);
     expect(validate({ querry: "typo" })).toBe(false);
   });
@@ -134,11 +141,94 @@ describe("specs 契约自检", () => {
           source: { type: "realtime", name: "xinfadi", url: "http://www.xinfadi.com.cn/" },
           data_time: "2026-08-23T00:00:00+08:00",
           confidence: "medium",
+          requested_region: "北京",
+          matched_region: "北京市",
+          region_code: "110000",
+          region_scope: "province",
+          region_match: true,
+          is_fallback: false,
+          price_basis: "wholesale_observed",
+          budget_usable: "reference_only",
+          market_count: 3,
+          aggregation_method: "market_min_max",
         },
       ],
       unmatched: [],
       warnings: [],
+      summary: {
+        requested_count: 1,
+        quoted_count: 1,
+        priced_count: 1,
+        exact_region_priced_count: 1,
+        province_priced_count: 1,
+        national_fallback_count: 0,
+        cross_region_fallback_count: 0,
+        benchmark_priced_count: 0,
+        unmatched_count: 0,
+        budget_status: "reference_only",
+        complete: true,
+        priced_subtotal: { low: 1.6, high: 2.6 },
+      },
     });
     expect(ok, JSON.stringify(validate.errors)).toBe(true);
+  });
+
+  it("quote_ingredient_prices 输入：可显式禁止全国回退", () => {
+    const validate = schemas.get("quote-ingredient-prices.input.schema.json")!;
+    expect(
+      validate({
+        region: "上海",
+        ingredients: [{ ingredient: "tomato", quantity: 400, unit: "g" }],
+        allow_national_fallback: false,
+      }),
+      JSON.stringify(validate.errors),
+    ).toBe(true);
+  });
+
+  it("quote_ingredient_prices 输入：地区可省略以使用全国参考", () => {
+    const validate = schemas.get("quote-ingredient-prices.input.schema.json")!;
+    expect(
+      validate({ ingredients: [{ ingredient: "tomato", quantity: 400, unit: "g" }] }),
+      JSON.stringify(validate.errors),
+    ).toBe(true);
+  });
+
+  it("替换与关系知识契约接受可追溯的发布文档", () => {
+    const substitution = schemas.get("substitution.schema.json")!;
+    expect(
+      substitution({
+        schema_version: 1,
+        substitution_id: "tomato-eggs-scallion-omit",
+        version: 1,
+        status: "published",
+        from_ingredient: "scallion",
+        to_ingredient: null,
+        mode: "omit",
+        valid_context: { roles: ["garnish"], techniques: ["stir-fry"], recipe_ids: ["tomato-eggs"] },
+        ratio: null,
+        step_changes: ["省略撒葱花。"],
+        allergen_changes: { add: [], remove: [] },
+        effects: { flavor: "葱香减弱", texture: "不变", time_delta_minutes: 0 },
+        evidence: { type: "recipe_source", source: "recipes/tomato-eggs/番茄炒蛋-v1.md" },
+        published_at: "2026-08-24",
+      }),
+      JSON.stringify(substitution.errors),
+    ).toBe(true);
+
+    const relation = schemas.get("recipe-relation.schema.json")!;
+    expect(
+      relation({
+        schema_version: 1,
+        relation_id: "tomato-eggs-garlic-broccoli-pair",
+        version: 1,
+        status: "published",
+        type: "pairs_with",
+        source_recipe_id: "tomato-eggs",
+        target_recipe_id: "garlic-broccoli",
+        reason: "蛋类主菜搭配快手蔬菜。",
+        published_at: "2026-08-24",
+      }),
+      JSON.stringify(relation.errors),
+    ).toBe(true);
   });
 });

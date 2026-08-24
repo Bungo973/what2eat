@@ -1,0 +1,149 @@
+{
+  "$id": "render-meal-plan-html.input.schema.json",
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "render_meal_plan_html 输入",
+  "type": "object",
+  "required": ["title", "menu", "recipes", "shopping_groups"],
+  "properties": {
+    "title": { "type": "string", "minLength": 1, "maxLength": 100 },
+    "summary": {
+      "type": "object",
+      "properties": {
+        "date_range": { "type": "string", "maxLength": 80 },
+        "servings": { "type": "string", "maxLength": 40 },
+        "constraints": { "type": "array", "maxItems": 20, "items": { "type": "string", "maxLength": 120 } }
+      },
+      "additionalProperties": false
+    },
+    "menu": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 100,
+      "items": {
+        "type": "object",
+        "required": ["date", "meal_type", "dishes"],
+        "properties": {
+          "date": { "type": "string", "maxLength": 40 },
+          "meal_type": { "type": "string", "maxLength": 20 },
+          "dishes": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 10,
+            "items": {
+              "type": "object",
+              "required": ["name", "recipe_id", "version", "servings", "total_minutes"],
+              "properties": {
+                "name": { "type": "string", "maxLength": 80 },
+                "recipe_id": { "$ref": "https://what2eat.dev/schemas/common.schema.json#/$defs/recipe_id" },
+                "version": { "type": "integer", "minimum": 1 },
+                "servings": { "type": "number", "exclusiveMinimum": 0 },
+                "total_minutes": { "type": "integer", "minimum": 0 }
+              },
+              "additionalProperties": false
+            }
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    "recipes": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 100,
+      "items": {
+        "type": "object",
+        "required": ["name", "recipe_id", "version", "servings", "total_minutes", "ingredients", "steps"],
+        "properties": {
+          "name": { "type": "string", "maxLength": 80 },
+          "recipe_id": { "$ref": "https://what2eat.dev/schemas/common.schema.json#/$defs/recipe_id" },
+          "version": { "type": "integer", "minimum": 1 },
+          "servings": { "type": "number", "exclusiveMinimum": 0 },
+          "total_minutes": { "type": "integer", "minimum": 0 },
+          "ingredients": {
+            "type": "array",
+            "minItems": 1,
+            "items": {
+              "type": "object",
+              "required": ["name", "quantity", "unit"],
+              "properties": {
+                "name": { "type": "string", "maxLength": 80 },
+                "quantity": { "type": ["number", "null"] },
+                "unit": { "type": ["string", "null"], "maxLength": 20 },
+                "preparation": { "type": "string", "maxLength": 120 },
+                "notes": { "type": "string", "maxLength": 160 }
+              },
+              "additionalProperties": false
+            }
+          },
+          "steps": { "type": "array", "minItems": 1, "items": { "type": "string", "minLength": 1, "maxLength": 1000 } }
+        },
+        "additionalProperties": false
+      }
+    },
+    "shopping_groups": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["category", "items"],
+        "properties": {
+          "category": { "type": "string", "maxLength": 60 },
+          "items": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": ["name", "required", "to_buy"],
+              "properties": {
+                "name": { "type": "string", "maxLength": 80 },
+                "required": { "type": "string", "maxLength": 60 },
+                "owned": { "type": "string", "maxLength": 60 },
+                "to_buy": { "type": "string", "maxLength": 60 },
+                "used_in": { "type": "array", "maxItems": 30, "items": { "type": "string", "maxLength": 100 } }
+              },
+              "additionalProperties": false
+            }
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    "pricing": {
+      "type": "object",
+      "required": ["requested_region", "currency", "budget_status", "coverage_summary", "items"],
+      "properties": {
+        "requested_region": { "type": "string", "maxLength": 40 },
+        "currency": { "const": "CNY" },
+        "total_range": {
+          "oneOf": [
+            { "type": "null" },
+            { "$ref": "https://what2eat.dev/schemas/common.schema.json#/$defs/price_range" }
+          ]
+        },
+        "budget_status": { "enum": ["verified", "reference_only", "incomplete"] },
+        "coverage_summary": { "type": "string", "maxLength": 300 },
+        "budget_note": { "type": "string", "maxLength": 300 },
+        "items": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["name", "quantity", "unit_price", "subtotal", "matched_region", "basis", "source", "confidence"],
+            "properties": {
+              "name": { "type": "string", "maxLength": 80 },
+              "quantity": { "type": "string", "maxLength": 60 },
+              "unit_price": { "type": "string", "maxLength": 80 },
+              "subtotal": { "type": "string", "maxLength": 80 },
+              "matched_region": { "type": "string", "maxLength": 80 },
+              "basis": { "type": "string", "maxLength": 80 },
+              "source": { "type": "string", "maxLength": 120 },
+              "data_time": { "type": "string", "maxLength": 80 },
+              "confidence": { "type": "string", "maxLength": 30 }
+            },
+            "additionalProperties": false
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "notices": { "type": "array", "maxItems": 50, "items": { "type": "string", "maxLength": 400 } }
+  },
+  "additionalProperties": false
+}

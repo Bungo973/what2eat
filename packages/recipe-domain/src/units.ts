@@ -10,13 +10,17 @@ const UNIVERSAL_TO_BASE: Partial<Record<IngredientUnit, { base: BaseUnit; factor
   两: { base: "g", factor: 50 },
 };
 
-export interface ConversionResult {
-  ok: boolean;
-  value?: number;
-  baseUnit?: BaseUnit;
-  approximate?: boolean;
-  reason?: string;
-}
+export type ConversionResult =
+  | {
+      ok: true;
+      value: number;
+      baseUnit: BaseUnit;
+      approximate?: boolean;
+    }
+  | {
+      ok: false;
+      reason: string;
+    };
 
 /**
  * 将某食材的一个数量换算到基准单位（g/ml/piece）。
@@ -28,6 +32,9 @@ export function toBaseUnit(
   quantity: number,
   fromUnit: IngredientUnit,
 ): ConversionResult {
+  if (!Number.isFinite(quantity) || quantity < 0) {
+    return { ok: false, reason: "数量必须是非负有限数" };
+  }
   if (ingredient) {
     for (const conv of ingredient.conversions) {
       if (conv.from_unit === fromUnit) {
@@ -57,12 +64,15 @@ export function fromBaseUnit(
   baseUnit: BaseUnit,
   toUnit: IngredientUnit,
 ): ConversionResult {
+  if (!Number.isFinite(baseQuantity) || baseQuantity < 0) {
+    return { ok: false, reason: "数量必须是非负有限数" };
+  }
   if (baseUnit === "piece" && toUnit === "piece") {
     return { ok: true, value: baseQuantity, baseUnit };
   }
   const probe = toBaseUnit(ingredient, 1, toUnit);
   if (probe.ok && probe.baseUnit === baseUnit) {
-    return { ok: true, value: baseQuantity / probe.value!, baseUnit };
+    return { ok: true, value: baseQuantity / probe.value, baseUnit };
   }
   return { ok: false, reason: `${baseUnit} 与 ${toUnit} 不可互换单位系` };
 }

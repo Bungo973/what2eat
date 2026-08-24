@@ -37,7 +37,7 @@ export class XinfadiProvider implements PriceProvider {
   ) {}
 
   supports(region: string): boolean {
-    return region === "北京";
+    return region.trim().replace(/市$/, "") === "北京";
   }
 
   async quote(items: ProviderQueryItem[], region: string): Promise<ProviderQuote[]> {
@@ -87,6 +87,16 @@ export class XinfadiProvider implements PriceProvider {
         source: { type: "realtime", name: "xinfadi", url: this.endpoint },
         data_time: newest.replace(" ", "T") + (newest.includes("+") ? "" : "+08:00"),
         confidence: "medium",
+        requested_region: region,
+        matched_region: region,
+        region_code: "110000",
+        region_scope: "market",
+        region_match: true,
+        is_fallback: false,
+        price_basis: "wholesale_observed",
+        budget_usable: "reference_only",
+        market_count: 1,
+        aggregation_method: "reported_low_high",
         warnings: ["批发价口径（新发地当日），未含零售加价"],
       };
     }

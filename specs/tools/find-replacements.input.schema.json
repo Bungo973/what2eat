@@ -1,0 +1,39 @@
+{
+  "$id": "find-replacements.input.schema.json",
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "find_replacements 输入",
+  "type": "object",
+  "required": ["recipe_id", "reason"],
+  "properties": {
+    "recipe_id": { "$ref": "https://what2eat.dev/schemas/common.schema.json#/$defs/recipe_id" },
+    "version": { "type": ["integer", "null"], "minimum": 1 },
+    "reason": { "enum": ["unavailable", "budget", "preference"] },
+    "unavailable_ingredients": {
+      "type": "array",
+      "uniqueItems": true,
+      "maxItems": 20,
+      "items": { "$ref": "https://what2eat.dev/schemas/common.schema.json#/$defs/ingredient_ref" }
+    },
+    "exclude_allergens": {
+      "type": "array",
+      "uniqueItems": true,
+      "maxItems": 10,
+      "items": { "type": "string", "pattern": "^[a-z_]+$" }
+    },
+    "dietary_constraints": {
+      "type": "array",
+      "uniqueItems": true,
+      "maxItems": 10,
+      "items": { "type": "string", "minLength": 1, "maxLength": 32 }
+    },
+    "max_total_minutes": { "type": "integer", "minimum": 1, "maximum": 1200 },
+    "equipment": {
+      "type": "array",
+      "uniqueItems": true,
+      "maxItems": 10,
+      "items": { "type": "string", "pattern": "^[a-z][a-z0-9-]*$" }
+    },
+    "limit": { "type": "integer", "minimum": 1, "maximum": 20, "default": 8 }
+  },
+  "additionalProperties": false
+}

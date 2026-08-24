@@ -26,5 +26,5 @@ export function specsDir(): string {
 }
 
 export function defaultKnowledgeDir(): string {
-  return process.env.WHAT2EAT_KNOWLEDGE_DIR ?? join(findRepoRoot(), "knowledge");
+  return process.env.WHAT2EAT_KNOWLEDGE_DIR ?? join(findRepoRoot(), "knowledge", "menu");
 }

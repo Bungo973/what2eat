@@ -2,7 +2,7 @@
   "$id": "recipe-frontmatter.schema.json",
   "$schema": "http://json-schema.org/draft-07/schema#",
   "title": "菜谱文档 frontmatter 契约",
-  "description": "knowledge/recipes/<id>/vN.md 与 drafts/ 文档的 YAML frontmatter 结构底线（PRD §9.2/9.3）。跨字段与版本状态规则由 recipe-domain 校验器实现。",
+  "description": "knowledge/menu/recipes/<id>/vN.md 与 drafts/ 文档的 YAML frontmatter 结构底线。跨字段与版本状态规则由 recipe-domain 校验器实现。",
   "type": "object",
   "required": [
     "schema_version",

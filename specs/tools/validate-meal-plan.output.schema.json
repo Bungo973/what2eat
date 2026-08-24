@@ -24,7 +24,9 @@
               "EQUIPMENT_UNAVAILABLE",
               "TIME_EXCEEDED",
               "BUDGET_EXCEEDED",
-              "DUPLICATE_MEAL_SLOT"
+              "BUDGET_UNVERIFIED",
+              "DUPLICATE_MEAL_SLOT",
+              "DUPLICATE_RECIPE_IN_SLOT"
             ]
           },
           "message": { "type": "string" },

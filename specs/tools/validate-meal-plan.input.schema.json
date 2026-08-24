@@ -85,11 +85,19 @@
     },
     "pricing": {
       "type": "object",
-      "description": "由 quote_ingredient_prices 得到的总价区间；提供且预算为硬上限时执行预算校验",
+      "description": "由 quote_ingredient_prices 得到的总价区间与覆盖完整性；硬预算仅在 complete=true 时执行金额判断",
       "required": ["total_range", "currency"],
       "properties": {
         "total_range": { "$ref": "https://what2eat.dev/schemas/common.schema.json#/$defs/price_range" },
-        "currency": { "const": "CNY" }
+        "currency": { "const": "CNY" },
+        "complete": {
+          "type": "boolean",
+          "description": "全部待购项目均有可换算总价且均匹配请求地区时为 true；缺省按不完整处理"
+        },
+        "budget_status": {
+          "enum": ["verified", "reference_only", "incomplete"],
+          "description": "quote_ingredient_prices 的预算性质；只有 verified 可执行硬预算金额判断"
+        }
       },
       "additionalProperties": false
     }

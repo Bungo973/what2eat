@@ -22,6 +22,8 @@ export interface MealPlanConstraints {
 export interface MealPlanPricing {
   total_range: { low: number; high: number };
   currency: "CNY";
+  complete?: boolean;
+  budget_status?: "verified" | "reference_only" | "incomplete";
 }
 
 export interface PlanIssue {
@@ -33,34 +35,28 @@ export interface PlanIssue {
   version?: number;
 }
 
+export interface MealPlanInput {
+  meals: MealPlanMeal[];
+  expected_scope?: { dates: string[]; meal_types: MealType[] };
+  constraints?: MealPlanConstraints;
+  pricing?: MealPlanPricing;
+}
+
 /** 方案确定性校验（PRD §8.5）：只校验，不生成。 */
 export function validateMealPlan(
   repo: KnowledgeRepo,
   catalog: CatalogIndex,
-  input: {
-    meals: MealPlanMeal[];
-    expected_scope?: { dates: string[]; meal_types: MealType[] };
-    constraints?: MealPlanConstraints;
-    pricing?: MealPlanPricing;
-  },
+  input: MealPlanInput,
 ): Record<string, unknown> {
   const errors: PlanIssue[] = [];
   const warnings: Array<{ code: string; message: string; subject?: string }> = [];
   const assumptions: string[] = [];
   const constraints = input.constraints ?? {};
 
-  // 餐位重复
+  // 一个餐位可以有多道不同菜；完整性只要求餐位至少有一道菜。
   const slots = new Set<string>();
   for (const meal of input.meals) {
     const key = `${meal.date}|${meal.meal_type}`;
-    if (slots.has(key)) {
-      errors.push({
-        code: "DUPLICATE_MEAL_SLOT",
-        message: `${meal.date} ${meal.meal_type} 被安排了多于一个菜谱`,
-        date: meal.date,
-        meal_type: meal.meal_type,
-      });
-    }
     slots.add(key);
   }
 
@@ -82,10 +78,24 @@ export function validateMealPlan(
 
   // 逐餐校验
   const recipeUsage = new Map<string, number>();
+  const dishesInSlot = new Set<string>();
   for (const meal of input.meals) {
     const doc = resolveMealRecipe(repo, meal, errors);
     if (!doc) continue;
     const meta = doc.meta;
+    const dishKey = `${meal.date}|${meal.meal_type}|${meta.recipe_id}`;
+    if (dishesInSlot.has(dishKey)) {
+      errors.push({
+        code: "DUPLICATE_RECIPE_IN_SLOT",
+        message: `${meal.date} ${meal.meal_type} 重复安排了 ${meta.name}（${meta.recipe_id}）`,
+        date: meal.date,
+        meal_type: meal.meal_type,
+        recipe_id: meta.recipe_id,
+        version: meta.version,
+      });
+      continue;
+    }
+    dishesInSlot.add(dishKey);
     recipeUsage.set(meta.recipe_id, (recipeUsage.get(meta.recipe_id) ?? 0) + 1);
 
     // 过敏原：frontmatter 声明 + 目录复核并集
@@ -189,7 +199,16 @@ export function validateMealPlan(
   // 预算
   const budget = constraints.budget;
   if (budget && budget.mode === "hard") {
-    if (input.pricing) {
+    if (
+      !input.pricing ||
+      input.pricing.complete !== true ||
+      (input.pricing.budget_status != null && input.pricing.budget_status !== "verified")
+    ) {
+      errors.push({
+        code: "BUDGET_UNVERIFIED",
+        message: "硬预算缺少完整且可用于验证的地区价格；批发价、全国回退或参考估算只能作为预算参考",
+      });
+    } else {
       const { low, high } = input.pricing.total_range;
       if (low > budget.amount) {
         errors.push({
@@ -202,8 +221,6 @@ export function validateMealPlan(
           message: `估价上限 ¥${high} 超过硬预算 ¥${budget.amount}，下限仍在预算内`,
         });
       }
-    } else {
-      assumptions.push("提供硬预算但未提供估价区间（pricing），未执行预算校验");
     }
   }
 

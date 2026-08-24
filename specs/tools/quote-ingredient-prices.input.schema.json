@@ -3,13 +3,13 @@
   "$schema": "http://json-schema.org/draft-07/schema#",
   "title": "quote_ingredient_prices 输入",
   "type": "object",
-  "required": ["region", "ingredients"],
+  "required": ["ingredients"],
   "properties": {
     "region": {
       "type": "string",
       "minLength": 2,
       "maxLength": 32,
-      "description": "地区，至少精确到城市，如 北京"
+      "description": "可选地区；提供城市时优先匹配所在省份，未提供时使用全国参考价"
     },
     "ingredients": {
       "type": "array",
@@ -36,6 +36,11 @@
       "minimum": 1,
       "maximum": 720,
       "description": "可选价格时效要求；超出时效的数据将降级并披露"
+    },
+    "allow_national_fallback": {
+      "type": "boolean",
+      "default": true,
+      "description": "省级市场无报价时是否允许全国或跨地区维护者基准参考；false 时所有非省级命中项进入 unmatched"
     }
   },
   "additionalProperties": false

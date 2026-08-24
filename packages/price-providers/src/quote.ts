@@ -14,6 +14,7 @@ export interface QuoteRequest {
   ingredients: QuoteRequestItem[];
   channel?: string | null;
   max_age_hours?: number | null;
+  allow_national_fallback?: boolean;
 }
 
 export interface QuoteOutput {
@@ -22,6 +23,7 @@ export interface QuoteOutput {
   quotes: Array<{
     ingredient_id: string;
     name: string;
+    requested_quantity: { quantity: number; unit: string } | null;
     quantity: number | null;
     unit: string;
     unit_price: { low: number; high: number };
@@ -31,9 +33,33 @@ export interface QuoteOutput {
     source: { type: "realtime" | "cached" | "benchmark"; name: string; url: string | null };
     data_time: string | null;
     confidence: "low" | "medium" | "high";
+    requested_region: string;
+    matched_region: string;
+    region_code: string | null;
+    region_scope: "market" | "city" | "province" | "national" | "unknown";
+    region_match: boolean;
+    is_fallback: boolean;
+    price_basis: "wholesale_observed" | "national_wholesale_average" | "retail_estimate" | "unknown";
+    budget_usable: "verified" | "reference_only";
+    market_count: number | null;
+    aggregation_method: string | null;
   }>;
   unmatched: Array<{ ingredient: string; reason: string }>;
   warnings: Warning[];
+  summary: {
+    requested_count: number;
+    quoted_count: number;
+    priced_count: number;
+    exact_region_priced_count: number;
+    province_priced_count: number;
+    national_fallback_count: number;
+    cross_region_fallback_count: number;
+    benchmark_priced_count: number;
+    unmatched_count: number;
+    budget_status: "verified" | "reference_only" | "incomplete";
+    complete: boolean;
+    priced_subtotal: { low: number; high: number } | null;
+  };
 }
 
 const GRAMS_PER_UNIT: Record<string, number> = {
@@ -69,13 +95,71 @@ export class QuoteService {
     const unmatched: Array<{ ingredient: string; reason: string }> = [];
     const quotes: QuoteOutput["quotes"] = [];
 
-    for (const item of request.ingredients) {
-      const cat = this.catalog.resolveLoose(item.ingredient);
-      if (!cat) {
-        unmatched.push({ ingredient: item.ingredient, reason: "不在标准食材目录中，无法查询" });
+    const prepared = request.ingredients.map((item) => ({ item, cat: this.catalog.resolveLoose(item.ingredient) }));
+    const uniqueCatalog = new Map<string, CatalogIngredient>();
+    for (const entry of prepared) {
+      if (entry.cat) uniqueCatalog.set(entry.cat.id, entry.cat);
+      else unmatched.push({ ingredient: entry.item.ingredient, reason: "不在标准食材目录中，无法查询" });
+    }
+
+    const resolved = new Map<string, ProviderQuote>();
+    for (const cat of uniqueCatalog.values()) {
+      const cached = this.cache.get(request.region, cat.id, request.channel);
+      if (!cached) continue;
+      if (request.allow_national_fallback === false && !quoteMatchesRegion(cached, request.region)) continue;
+      this.applyAgePolicy(cached, request, warnings);
+      resolved.set(cat.id, cached);
+    }
+
+    for (const provider of this.orderedProviders(request.channel)) {
+      const pending = [...uniqueCatalog.values()].filter((cat) => !resolved.has(cat.id));
+      if (pending.length === 0) break;
+      if (!provider.supports(request.region)) continue;
+      let providerQuotes: ProviderQuote[];
+      try {
+        const providerOptions = {
+          ...(request.allow_national_fallback === undefined
+            ? {}
+            : { allow_national_fallback: request.allow_national_fallback }),
+          ...(request.channel === undefined ? {} : { channel: request.channel }),
+        };
+        providerQuotes = await provider.quote(
+          pending.map((cat) => ({ ingredient_id: cat.id, name: cat.canonical_name })),
+          request.region,
+          providerOptions,
+        );
+      } catch (error) {
+        warnings.push({
+          code: "PROVIDER_DEGRADED",
+          message: `价格源 ${provider.name} 不可用：${(error as Error).message}，已降级`,
+          subject: provider.name,
+        });
         continue;
       }
-      const quote = await this.resolveQuote(cat, request, warnings);
+      for (const hit of providerQuotes) {
+        const cat = uniqueCatalog.get(hit.ingredient_id);
+        if (!cat || resolved.has(cat.id)) continue;
+        const regionMatch = quoteMatchesRegion(hit, request.region);
+        if (request.allow_national_fallback === false && !regionMatch) continue;
+        for (const message of hit.warnings ?? []) {
+          warnings.push({ code: "PRICE_SOURCE_LIMITATION", message, subject: cat.id });
+        }
+        if (!regionMatch) {
+          warnings.push({
+            code: "REGION_FALLBACK",
+            message: `${cat.canonical_name} 未取得 ${request.region}省级价格，使用 ${hit.region} 参考价`,
+            subject: cat.id,
+          });
+        }
+        this.cache.set(request.region, cat.id, cat.category, hit, request.channel);
+        this.applyAgePolicy(hit, request, warnings);
+        resolved.set(cat.id, hit);
+      }
+    }
+
+    for (const { item, cat } of prepared) {
+      if (!cat) continue;
+      const quote = resolved.get(cat.id);
       if (!quote) {
         unmatched.push({ ingredient: item.ingredient, reason: "所有价格源均无该食材数据" });
         continue;
@@ -93,6 +177,10 @@ export class QuoteService {
       quotes.push({
         ingredient_id: cat.id,
         name: cat.canonical_name,
+        requested_quantity:
+          quantity != null && requestUnit != null
+            ? { quantity, unit: requestUnit }
+            : null,
         quantity,
         unit: quote.unit,
         unit_price: quote.unit_price,
@@ -102,8 +190,44 @@ export class QuoteService {
         source: quote.source,
         data_time: quote.data_time,
         confidence: quote.confidence,
+        requested_region: quote.requested_region ?? request.region,
+        matched_region: quote.matched_region ?? quote.region,
+        region_code: quote.region_code ?? null,
+        region_scope: quote.region_scope ?? "unknown",
+        region_match: quoteMatchesRegion(quote, request.region),
+        is_fallback: quote.is_fallback ?? !quoteMatchesRegion(quote, request.region),
+        price_basis:
+          quote.price_basis ?? (quote.source.type === "benchmark" ? "retail_estimate" : "unknown"),
+        budget_usable: quote.budget_usable ?? "reference_only",
+        market_count: quote.market_count ?? null,
+        aggregation_method: quote.aggregation_method ?? null,
       });
     }
+
+    const priced = quotes.filter((quote) => quote.total_price !== null);
+    const exactRegionPriced = priced.filter((quote) => sameRegion(quote.matched_region, request.region));
+    const provincePriced = priced.filter(
+      (quote) => quote.region_match && ["market", "city", "province"].includes(quote.region_scope),
+    );
+    const nationalFallback = priced.filter((quote) => quote.region_scope === "national");
+    const crossRegionFallback = priced.filter((quote) => quote.is_fallback && quote.region_scope !== "national");
+    const benchmarkPriced = priced.filter((quote) => quote.source.type === "benchmark");
+    const pricedSubtotal = priced.length
+      ? {
+          low: round2(priced.reduce((sum, quote) => sum + quote.total_price!.low, 0)),
+          high: round2(priced.reduce((sum, quote) => sum + quote.total_price!.high, 0)),
+        }
+      : null;
+    const complete =
+      unmatched.length === 0 &&
+      priced.length === request.ingredients.length &&
+      provincePriced.length === request.ingredients.length;
+    const budgetStatus: QuoteOutput["summary"]["budget_status"] =
+      unmatched.length > 0 || priced.length !== request.ingredients.length
+        ? "incomplete"
+        : quotes.every((quote) => quote.budget_usable === "verified")
+          ? "verified"
+          : "reference_only";
 
     return {
       region: request.region,
@@ -111,44 +235,21 @@ export class QuoteService {
       quotes,
       unmatched,
       warnings,
+      summary: {
+        requested_count: request.ingredients.length,
+        quoted_count: quotes.length,
+        priced_count: priced.length,
+        exact_region_priced_count: exactRegionPriced.length,
+        province_priced_count: provincePriced.length,
+        national_fallback_count: nationalFallback.length,
+        cross_region_fallback_count: crossRegionFallback.length,
+        benchmark_priced_count: benchmarkPriced.length,
+        unmatched_count: unmatched.length,
+        budget_status: budgetStatus,
+        complete,
+        priced_subtotal: pricedSubtotal,
+      },
     };
-  }
-
-  private async resolveQuote(
-    cat: CatalogIngredient,
-    request: QuoteRequest,
-    warnings: Warning[],
-  ): Promise<ProviderQuote | null> {
-    const cached = this.cache.get(request.region, cat.id);
-    if (cached) {
-      this.applyAgePolicy(cached, request, warnings);
-      return cached;
-    }
-    const ordered = this.orderedProviders(request.channel);
-    for (const provider of ordered) {
-      if (!provider.supports(request.region)) continue;
-      let providerQuotes: ProviderQuote[];
-      try {
-        providerQuotes = await provider.quote(
-          [{ ingredient_id: cat.id, name: cat.canonical_name }],
-          request.region,
-        );
-      } catch (e) {
-        warnings.push({
-          code: "PROVIDER_DEGRADED",
-          message: `价格源 ${provider.name} 不可用：${(e as Error).message}，已降级`,
-          subject: cat.id,
-        });
-        continue;
-      }
-      const hit = providerQuotes.find((q) => q.ingredient_id === cat.id);
-      if (hit) {
-        this.cache.set(request.region, cat.id, cat.category, hit);
-        this.applyAgePolicy(hit, request, warnings);
-        return hit;
-      }
-    }
-    return null;
   }
 
   private orderedProviders(channel?: string | null): PriceProvider[] {
@@ -234,6 +335,15 @@ export class QuoteService {
 
 function round2(n: number): number {
   return Math.round(n * 100) / 100;
+}
+
+function sameRegion(actual: string, requested: string): boolean {
+  const normalize = (value: string) => value.trim().replace(/[市省]$/, "");
+  return normalize(actual) === normalize(requested);
+}
+
+function quoteMatchesRegion(quote: ProviderQuote, requested: string): boolean {
+  return quote.region_match ?? sameRegion(quote.region, requested);
 }
 
 /** 供 server 端注入：把 ToolError 语义保留在工具层。 */

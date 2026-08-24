@@ -3,6 +3,7 @@ import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
 import { validateToolOutput, type ToolName } from "@what2eat/recipe-domain";
 import { createWhat2EatServer } from "@what2eat/mcp-server/src/http.ts";
+import { normalizePriceRequest } from "@what2eat/mcp-server/src/price.ts";
 
 const TOKEN = "test-token-123";
 let server: ReturnType<typeof createWhat2EatServer>["server"];
@@ -52,23 +53,70 @@ describe("MCP 服务骨架", () => {
   });
 
   it("health 端点无需鉴权", async () => {
-    const res = await fetch(`${baseUrl}/health`);
+    const res = await fetch(`${baseUrl}/health?verbose=1`);
     expect(res.status).toBe(200);
     expect(await res.json()).toMatchObject({ ok: true });
   });
 
-  it("列出六个公共工具", async () => {
+  it("非法 JSON 返回稳定的 INVALID_ARGUMENT 错误", async () => {
+    const res = await fetch(`${baseUrl}/mcp`, {
+      method: "POST",
+      headers: {
+        authorization: `Bearer ${TOKEN}`,
+        "content-type": "application/json",
+      },
+      body: "{",
+    });
+    expect(res.status).toBe(400);
+    expect(await res.json()).toMatchObject({
+      code: "INVALID_ARGUMENT",
+      retryable: false,
+      details: {},
+    });
+  });
+
+  it("超过 1MB 的请求体返回结构化错误且不重置连接", async () => {
+    const res = await fetch(`${baseUrl}/mcp`, {
+      method: "POST",
+      headers: {
+        authorization: `Bearer ${TOKEN}`,
+        "content-type": "application/json",
+      },
+      body: JSON.stringify({ payload: "x".repeat(1024 * 1024) }),
+    });
+    expect(res.status).toBe(400);
+    expect(await res.json()).toMatchObject({
+      code: "INVALID_ARGUMENT",
+      details: { max_body_bytes: 1024 * 1024 },
+    });
+  });
+
+  it("列出八个公共工具", async () => {
     const client = await makeClient();
     const { tools } = await client.listTools();
     expect(tools.map((t) => t.name).sort()).toEqual([
       "aggregate_shopping_list",
+      "find_replacements",
       "grep_recipe_docs",
       "quote_ingredient_prices",
       "read_recipe",
+      "render_meal_plan_html",
       "search_recipes",
       "validate_meal_plan",
     ]);
     await client.close();
+  });
+
+  it("价格请求缺省地区时归一化为全国参考", () => {
+    expect(
+      normalizePriceRequest({
+        ingredients: [{ ingredient: "tomato", quantity: 400, unit: "g" }],
+      }),
+    ).toMatchObject({
+      region: "全国",
+      allow_national_fallback: true,
+      ingredients: [{ ingredient: "tomato", quantity: 400, unit: "g" }],
+    });
   });
 
   it("search_recipes 返回符合输出契约的结果", async () => {
