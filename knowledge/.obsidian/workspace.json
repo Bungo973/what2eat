@@ -13,12 +13,12 @@
             "state": {
               "type": "markdown",
               "state": {
-                "file": "menu/relations/tomato-eggs-garlic-broccoli-pair-v1.md",
+                "file": "menu/AGENTS.md",
                 "mode": "source",
                 "source": false
               },
               "icon": "lucide-file",
-              "title": "tomato-eggs-garlic-broccoli-pair-v1"
+              "title": "AGENTS"
             }
           }
         ]
@@ -99,7 +99,7 @@
             "state": {
               "type": "backlink",
               "state": {
-                "file": "menu/relations/tomato-eggs-garlic-broccoli-pair-v1.md",
+                "file": "menu/AGENTS.md",
                 "collapseAll": false,
                 "extraContext": false,
                 "sortOrder": "alphabetical",
@@ -190,6 +190,13 @@
   },
   "active": "0979ad6df0da8637",
   "lastOpenFiles": [
+    "menu/recipes/tomato-eggs/番茄炒蛋-v2.md",
+    "menu/AGENTS.md",
+    "menu/templates/recipe-template.md.tmp.13064.e67303bfb90f",
+    "menu/relations/tomato-eggs-garlic-broccoli-pair-v1.md",
+    "menu/recipes/smashed-cucumber/拍黄瓜-v2.md",
+    "menu/drafts/smashed-cucumber-v2.md",
+    "menu/drafts/tomato-eggs-v2.md",
     "menu/维护说明.md",
     "menu/首页.md",
     "menu/ingredients/ingredients.md",
@@ -218,13 +225,6 @@
     "menu/recipes/kung-pao-chicken/宫保鸡丁-v1.md",
     "menu/recipes/steamed-chicken-shiitake/香菇蒸鸡-v1.md",
     "menu/recipes/mapo-tofu/麻婆豆腐-v1.md",
-    "menu/recipes/braised-pork/红烧肉-v1.md",
-    "menu/recipes/egg-fried-rice/蛋炒饭-v1.md",
-    "menu/recipes/winter-melon-rib-soup/冬瓜排骨汤-v1.md",
-    "menu/recipes/blanched-choy-sum/白灼菜心-v1.md",
-    "recipes/garlic-broccoli",
-    "recipes",
-    "menu/recipes/winter-melon-rib-soup/winter-melon-rib-soup-v1.md",
-    "menu/recipes/tomato-eggs/tomato-eggs-v1.md"
+    "recipes/garlic-broccoli"
   ]
 }
