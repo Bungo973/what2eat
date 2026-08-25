@@ -18,6 +18,7 @@ mcp/server/   远程 MCP 服务（Streamable HTTP + Bearer 鉴权）
 knowledge/menu/ Obsidian Vault：recipes/、drafts/、ingredients/、substitutions/、relations/、prices/
 tests/        契约、知识库、Skill 与 Agent 场景测试
 cowork/       多 Agent 协作变更记录
+MAINTENANCE.md  维护清单：哪些信息需要用户提供、哪些常规维护场景 AI 可自主处理
 ```
 
 ## 快速开始

@@ -24,6 +24,9 @@ ingredients:
     quantity: 100
     unit: g
     preparation: 切法或预处理（可省略）
+    role: primary # primary | supporting | seasoning | garnish | cooking_medium（可省略，不确定就不填，不要瞎猜）
+    optional: false # 能否整体省略（可省略字段本身，不确定就不填）
+    defines_dish: false # 换掉/去掉后是否就变成另一道菜了（可省略字段本身，不确定就不填；true 时换菜应通过 relations/ 的 variant_of 表达，不是这里的 substitutions）
 source:
   name: 自有菜谱
   url: null
