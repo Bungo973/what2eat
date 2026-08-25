@@ -115,6 +115,50 @@ describe("specs 契约自检", () => {
     expect(validate({ recipe_id: "x", version: 1 })).toBe(false);
   });
 
+  it("菜谱 frontmatter 契约：食材 role/optional/defines_dish 为可选扩展字段（PRD V0.5 设计方向 1）", () => {
+    const validate = schemas.get("recipe-frontmatter.schema.json")!;
+    const base = {
+      schema_version: 1,
+      recipe_id: "tomato-eggs",
+      version: 2,
+      status: "published",
+      name: "番茄炒蛋",
+      summary: "十五分钟完成的家常番茄炒蛋",
+      servings: 2,
+      prep_minutes: 5,
+      cook_minutes: 10,
+      meal_types: ["lunch", "dinner"],
+      difficulty: "easy",
+      equipment: ["wok"],
+      tags: ["quick", "home-style"],
+      dietary_labels: ["vegetarian"],
+      allergens: ["egg"],
+      source: { name: "自有菜谱", url: null },
+      published_at: "2026-08-23",
+    };
+    const withRoleFields = {
+      ...base,
+      ingredients: [
+        { id: "tomato", name: "番茄", quantity: 300, unit: "g", role: "primary", optional: false, defines_dish: true },
+        { id: "egg", name: "鸡蛋", quantity: 3, unit: "piece", role: "primary", optional: false, defines_dish: true },
+        { id: "salt", name: "盐", quantity: null, unit: null, role: "seasoning", optional: true, defines_dish: false },
+      ],
+    };
+    expect(validate(withRoleFields), JSON.stringify(validate.errors)).toBe(true);
+
+    const withoutRoleFields = {
+      ...base,
+      ingredients: [{ id: "tomato", name: "番茄", quantity: 300, unit: "g" }],
+    };
+    expect(validate(withoutRoleFields), JSON.stringify(validate.errors)).toBe(true);
+
+    const withInvalidRole = {
+      ...base,
+      ingredients: [{ id: "tomato", name: "番茄", quantity: 300, unit: "g", role: "core" }],
+    };
+    expect(validate(withInvalidRole)).toBe(false);
+  });
+
   it("search_recipes 输入：拒绝未知字段与超界 limit", () => {
     const validate = schemas.get("search-recipes.input.schema.json")!;
     expect(validate({ query: "番茄", limit: 10 })).toBe(true);

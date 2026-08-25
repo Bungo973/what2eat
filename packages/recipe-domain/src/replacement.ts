@@ -27,9 +27,14 @@ export function findReplacements(
   );
   const excludedAllergens = new Set(input.exclude_allergens ?? []);
   const baseIngredientIds = new Set(base.meta.ingredients.map((item) => item.id));
+  const dishDefiningIngredientIds = new Set(
+    base.meta.ingredients.filter((item) => item.defines_dish === true).map((item) => item.id),
+  );
   const substitutions = repo
     .listPublishedSubstitutions()
     .filter((rule) => baseIngredientIds.has(rule.from_ingredient))
+    // 换掉/省略会改变菜品身份的食材，不能包装成同一道菜的调整，只能走整菜候选（variant_of/alternative_to）。
+    .filter((rule) => !dishDefiningIngredientIds.has(rule.from_ingredient))
     .filter(
       (rule) => {
         if (rule.valid_context.recipe_ids.includes(base.meta.recipe_id)) return true;
@@ -137,6 +142,15 @@ export function findReplacements(
       message: "没有适用于当前条件的已发布替换规则或人工菜谱关系，整菜候选来自确定性过滤",
       subject: base.meta.recipe_id,
     });
+  }
+  for (const ingredientId of unavailable) {
+    if (dishDefiningIngredientIds.has(ingredientId)) {
+      warnings.push({
+        code: "DISH_DEFINING_INGREDIENT_UNAVAILABLE",
+        message: "该食材决定这道菜的身份，缺货时只提供整菜候选（变体/其他菜），不返回同菜谱内的省略或替换建议",
+        subject: ingredientId,
+      });
+    }
   }
   return {
     base_recipe: {

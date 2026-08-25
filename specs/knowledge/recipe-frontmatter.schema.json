@@ -75,7 +75,16 @@
             "enum": [null, "g", "kg", "ml", "l", "piece", "两", "斤"]
           },
           "preparation": { "type": "string", "maxLength": 60 },
-          "notes": { "type": "string", "maxLength": 120 }
+          "notes": { "type": "string", "maxLength": 120 },
+          "role": {
+            "enum": ["primary", "supporting", "seasoning", "garnish", "cooking_medium"],
+            "description": "食材在这道菜里的角色；复用 substitution.schema.json 的 valid_context.roles 枚举。缺失表示尚未标注，通用替换规则匹配时须保守跳过"
+          },
+          "optional": { "type": "boolean", "description": "能否整体省略；缺失视为未标注，不得默认赋值" },
+          "defines_dish": {
+            "type": "boolean",
+            "description": "换掉/去掉后菜品身份是否改变；true 时应通过 variant_of/alternative_to 关系呈现整菜候选，find_replacements 不得为其返回同菜谱内的省略/替换候选"
+          }
         },
         "additionalProperties": false
       }

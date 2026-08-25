@@ -304,10 +304,10 @@ describe("场景 3：局部换菜（PRD 场景 8）", () => {
     );
     expect(result.filename).toMatch(/^meal-plan-[a-f0-9]+\.html$/);
     expect(result.mime_type).toBe("text/html; charset=utf-8");
-    expect(result.html).toContain("<h2>计划菜单</h2>");
-    expect(result.html).toContain("<h2>菜谱</h2>");
-    expect(result.html).toContain("<h2>采购清单</h2>");
-    expect(result.html).toContain("<h2>物价与预算</h2>");
+    expect(result.html).toContain("今天吃这些");
+    expect(result.html).toContain("怎么做");
+    expect(result.html).toContain("要买什么");
+    expect(result.html).toContain("大概花多少钱");
     expect(result.artifact_path).toContain(result.filename);
   });
 

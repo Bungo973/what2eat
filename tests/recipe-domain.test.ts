@@ -6,6 +6,7 @@ import { stringify as yamlStringify } from "yaml";
 import {
   aggregateShoppingList,
   CatalogIndex,
+  findReplacements,
   KnowledgeRepo,
   RecipeSearchService,
   renderMealPlanHtml,
@@ -131,6 +132,48 @@ beforeAll(() => {
       ],
     },
   );
+  writePublished(
+    "dish-def-test",
+    1,
+    {
+      name: "身份食材测试菜",
+      // prep+cook 刻意 >30 分钟、不含 tomato，避免污染其他 search_recipes 用例的期望结果。
+      prep_minutes: 15,
+      cook_minutes: 90,
+      ingredients: [
+        { id: "pork_belly", name: "五花肉", quantity: 300, unit: "g", role: "primary", optional: false, defines_dish: true },
+        { id: "egg", name: "鸡蛋", quantity: 3, unit: "piece", role: "garnish", optional: true, defines_dish: false },
+        { id: "salt", name: "盐", quantity: null, unit: null, notes: "按口味添加", role: "seasoning", optional: true },
+      ],
+    },
+  );
+  mkdirSync(join(knowledgeDir, "substitutions"), { recursive: true });
+  const substitutionMeta = (id: string, fromIngredient: string) => ({
+    schema_version: 1,
+    substitution_id: id,
+    version: 1,
+    status: "published",
+    from_ingredient: fromIngredient,
+    to_ingredient: null,
+    mode: "omit",
+    valid_context: { roles: [], techniques: [], recipe_ids: ["dish-def-test"] },
+    ratio: null,
+    step_changes: ["省略该食材，其余步骤不变。"],
+    allergen_changes: { add: [], remove: [] },
+    effects: { flavor: "风味略有变化", texture: "不影响成型", time_delta_minutes: 0 },
+    evidence: { type: "maintainer_review", source: null },
+    published_at: "2026-08-25",
+  });
+  writeFileSync(
+    join(knowledgeDir, "substitutions", "dish-def-test-pork-omit-v1.md"),
+    mdFromMeta(substitutionMeta("dish-def-test-pork-omit", "pork_belly") as unknown as Record<string, unknown>, "# 省略五花肉\n"),
+    "utf-8",
+  );
+  writeFileSync(
+    join(knowledgeDir, "substitutions", "dish-def-test-egg-omit-v1.md"),
+    mdFromMeta(substitutionMeta("dish-def-test-egg-omit", "egg") as unknown as Record<string, unknown>, "# 省略鸡蛋\n"),
+    "utf-8",
+  );
 });
 
 afterAll(() => {
@@ -255,6 +298,45 @@ describe("read_recipe", () => {
     expect(result.version).toBe(1);
     expect(result.raw_markdown.startsWith("---")).toBe(true);
     expect(result.raw_markdown).toContain("## 做法");
+  });
+});
+
+describe("find_replacements：defines_dish 食材身份约束", () => {
+  it("身份食材（defines_dish: true）不返回同菜谱内的省略/替换候选，只能走整菜候选", () => {
+    const { repo, catalog, search } = makeServices();
+    const result = findReplacements(repo, catalog, search, {
+      recipe_id: "dish-def-test",
+      reason: "unavailable",
+      unavailable_ingredients: ["pork_belly"],
+    });
+    expect(result.substitutions.some((s) => s.from_ingredient === "pork_belly")).toBe(false);
+    expect(
+      result.warnings.some(
+        (w) => w.code === "DISH_DEFINING_INGREDIENT_UNAVAILABLE" && w.subject === "pork_belly",
+      ),
+    ).toBe(true);
+  });
+
+  it("非身份食材不受影响，已发布省略规则正常返回", () => {
+    const { repo, catalog, search } = makeServices();
+    const result = findReplacements(repo, catalog, search, {
+      recipe_id: "dish-def-test",
+      reason: "unavailable",
+      unavailable_ingredients: ["egg"],
+    });
+    expect(result.substitutions).toContainEqual(
+      expect.objectContaining({ substitution_id: "dish-def-test-egg-omit", from_ingredient: "egg" }),
+    );
+  });
+
+  it("即使不按缺货筛选，身份食材的规则也永不出现在候选列表中", () => {
+    const { repo, catalog, search } = makeServices();
+    const result = findReplacements(repo, catalog, search, {
+      recipe_id: "dish-def-test",
+      reason: "preference",
+    });
+    expect(result.substitutions.some((s) => s.from_ingredient === "pork_belly")).toBe(false);
+    expect(result.substitutions.some((s) => s.from_ingredient === "egg")).toBe(true);
   });
 });
 
@@ -459,7 +541,7 @@ describe("render_meal_plan_html", () => {
       },
     });
     expect(html).toContain("<!doctype html>");
-    expect(html).toContain("<h2>物价与预算</h2>");
+    expect(html).toContain("大概花多少钱");
     expect(html).toContain("@media print");
     expect(html).toContain("&lt;script&gt;alert(1)&lt;/script&gt;");
     expect(html).not.toContain("<script>alert(1)</script>");

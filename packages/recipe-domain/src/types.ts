@@ -21,6 +21,12 @@ export interface IngredientLine {
   unit: IngredientUnit | null;
   preparation?: string;
   notes?: string;
+  /** 缺失表示尚未标注；通用替换规则匹配时须保守跳过，不得默认赋值 */
+  role?: IngredientRole;
+  /** 能否整体省略；缺失表示尚未标注 */
+  optional?: boolean;
+  /** 换掉/去掉后菜品身份是否改变；true 时只应走 variant_of/alternative_to 整菜候选 */
+  defines_dish?: boolean;
 }
 
 export interface RecipeMeta {

@@ -37,7 +37,10 @@
               "quantity": { "type": ["number", "null"] },
               "unit": { "type": ["string", "null"] },
               "preparation": { "type": "string" },
-              "notes": { "type": "string" }
+              "notes": { "type": "string" },
+              "role": { "enum": ["primary", "supporting", "seasoning", "garnish", "cooking_medium"] },
+              "optional": { "type": "boolean" },
+              "defines_dish": { "type": "boolean" }
             },
             "additionalProperties": false
           }

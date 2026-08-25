@@ -70,7 +70,8 @@
                 "quantity": { "type": ["number", "null"] },
                 "unit": { "type": ["string", "null"], "maxLength": 20 },
                 "preparation": { "type": "string", "maxLength": 120 },
-                "notes": { "type": "string", "maxLength": 160 }
+                "notes": { "type": "string", "maxLength": 160 },
+                "optional": { "type": "boolean", "description": "能否整体省略；来自菜谱 ingredients[].optional，缺失表示未标注" }
               },
               "additionalProperties": false
             }

@@ -92,6 +92,17 @@
 
 HTML 只承载工具和 Agent 已经确定的结果，不在渲染阶段新增菜、重算数量或推断价格。宿主不能附加文件、渲染工具不可用或渲染失败时，降级为符合本契约的完整 Markdown；不得因此丢失做法、采购或可靠报价。
 
+`read_recipe` 返回的食材标注了 `optional: true` 时，传入 `render_meal_plan_html` 的对应食材项应原样带上 `optional: true`，页面会标注"可省"；未标注或不确定是否可省的食材不得臆测赋值。
+
+## 换菜与替换
+
+呈现 `find_replacements` 结果时，按食材是否决定菜品身份分别措辞：
+
+- `warnings` 含 `DISH_DEFINING_INGREDIENT_UNAVAILABLE` 时，对应食材决定这道菜的身份；只能从 `recipe_alternatives`（`variant_of`/`alternative_to` 优先于 `derived`）呈现为换成其他菜，并明确说是"核心食材缺货/不吃，换了几个类似的其他菜"一类的表达。不得说成"稍微调整一下""省略一下就行"等暗示仍是同一道菜的话术，也不得为该食材编造同菜内的省略或替换方案；`substitutions` 中不会再包含该食材，不需要额外过滤。
+- 未触发该警告、且 `substitutions` 命中已发布规则时，可以按"同一道菜的调整"措辞呈现（例如"可以省略/替换某食材，其余步骤不变"），依据必须来自返回的 `step_changes`/`effects`，不得脱离规则内容自行编造替换效果或用量换算。
+- `substitutions` 为空且没有 `DISH_DEFINING_INGREDIENT_UNAVAILABLE`（即只有 `NO_CURATED_REPLACEMENT`）时，如实说明没有审核过的同菜调整方案，只呈现整菜候选，不得假装存在一个未经审核的调整方案。
+- `recipe_alternatives` 中 `relation_type: derived` 的候选来自确定性过滤，未经人工审核搭配关系；采用前仍需按标准工作流重新读取正文、汇总采购、报价和校验，不得直接当作已确认可用的替代菜谱呈现。
+
 ## 局部修改
 
 返回修改后的完整产物，并附变更摘要：被替换餐次、保持不变的餐次、采购量变化、预算变化以及新增或解除的警告。依赖变化必须说明来源。

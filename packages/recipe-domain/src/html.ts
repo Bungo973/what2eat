@@ -24,6 +24,7 @@ export interface MealPlanHtmlInput {
       unit: string | null;
       preparation?: string;
       notes?: string;
+      optional?: boolean;
     }>;
     steps: string[];
   }>;
@@ -59,80 +60,187 @@ export interface MealPlanHtmlInput {
   notices?: string[];
 }
 
+const TAPE_CLASSES = ["tape-jade", "tape-mustard", "tape-rose"];
+
 /** 只做展示：不缩放、不汇总、不报价、不校验。 */
 export function renderMealPlanHtml(input: MealPlanHtmlInput): string {
-  const summaryItems = [
+  const factStickers = [
     input.summary?.date_range ? ["日期", input.summary.date_range] : null,
     input.summary?.servings ? ["份数", input.summary.servings] : null,
     input.summary?.constraints?.length ? ["约束", input.summary.constraints.join("；")] : null,
   ].filter((item): item is string[] => item !== null);
+
   const menuRows = input.menu
     .map(
-      (slot) => `<tr><td>${e(slot.date)}</td><td>${e(slot.meal_type)}</td><td>${slot.dishes
-        .map(
-          (dish) =>
-            `<strong>${e(dish.name)}</strong><span class="meta">${e(dish.recipe_id)} v${dish.version} · ${n(dish.servings)} 人份 · ${dish.total_minutes} 分钟</span>`,
-        )
-        .join("<br>")}</td></tr>`,
+      (slot) => `<div class="menu-row">
+        <span class="menu-when">${e(slot.date)} · ${e(slot.meal_type)}</span>
+        <div class="menu-dishes">${slot.dishes
+          .map(
+            (dish) =>
+              `<span><span class="dish-name">${e(dish.name)}</span><br><span class="dish-meta">大约 ${dish.total_minutes} 分钟</span></span>`,
+          )
+          .join("")}</div>
+      </div>`,
     )
     .join("");
+
   const recipeCards = input.recipes
-    .map(
-      (recipe, index) => `<details${index === 0 ? " open" : ""}>
-        <summary>${e(recipe.name)} <span class="meta">${e(recipe.recipe_id)} v${recipe.version} · ${n(recipe.servings)} 人份 · ${recipe.total_minutes} 分钟</span></summary>
+    .map((recipe, index) => {
+      const tape = TAPE_CLASSES[index % TAPE_CLASSES.length];
+      const ingredientRows = recipe.ingredients
+        .map(
+          (item) =>
+            `<li><span>${e(item.name)}${item.preparation ? ` <span class="ing-prep">${e(item.preparation)}</span>` : ""}${item.notes ? ` <span class="ing-prep">${e(item.notes)}</span>` : ""}${item.optional ? `<span class="tag-optional">可省</span>` : ""}</span><span class="ing-qty">${quantity(item.quantity, item.unit)}</span></li>`,
+        )
+        .join("");
+      const stepRows = recipe.steps.map((step) => `<li>${e(step)}</li>`).join("");
+      return `<div class="card recipe-card">
+        <span class="tape ${tape}"></span>
+        <div class="recipe-head"><h3>${e(recipe.name)}</h3></div>
+        <p class="recipe-sub">${n(recipe.servings)} 人份 · 大约 ${recipe.total_minutes} 分钟</p>
         <div class="recipe-grid">
-          <section><h3>食材</h3><ul>${recipe.ingredients
-            .map(
-              (item) =>
-                `<li><strong>${e(item.name)}</strong> ${quantity(item.quantity, item.unit)}${item.preparation ? ` · ${e(item.preparation)}` : ""}${item.notes ? ` <span class="meta">${e(item.notes)}</span>` : ""}</li>`,
-            )
-            .join("")}</ul></section>
-          <section><h3>做法</h3><ol>${recipe.steps.map((step) => `<li>${e(step)}</li>`).join("")}</ol></section>
+          <div><p class="col-label hand">要买的食材</p><ul class="plain-list">${ingredientRows}</ul></div>
+          <div><p class="col-label hand">做法</p><ol class="steps">${stepRows}</ol></div>
         </div>
-      </details>`,
-    )
+      </div>`;
+    })
     .join("");
+
   const shoppingSections = input.shopping_groups
-    .map(
-      (group) => `<h3>${e(group.category)}</h3><div class="table-wrap"><table><thead><tr><th>食材</th><th>总需求</th><th>已有</th><th>待采购</th><th>用于</th></tr></thead><tbody>${group.items
-        .map(
-          (item) =>
-            `<tr><td>${e(item.name)}</td><td>${e(item.required)}</td><td>${e(item.owned ?? "—")}</td><td><strong>${e(item.to_buy)}</strong></td><td>${e(item.used_in?.join("、") ?? "—")}</td></tr>`,
-        )
-        .join("")}</tbody></table></div>`,
-    )
+    .map((group, gi) => {
+      const items = group.items
+        .map((item, ii) => {
+          const id = `sh-${gi}-${ii}`;
+          const used = item.used_in?.length ? `<span class="shop-used">${e(item.used_in.join("、"))}</span>` : "";
+          return `<li class="shop-item">
+            <input type="checkbox" id="${id}" class="check">
+            <label for="${id}"><span>${e(item.name)}${used}</span><span class="ing-qty">${e(item.to_buy)}</span></label>
+          </li>`;
+        })
+        .join("");
+      return `<div class="shop-section"><h3 class="hand">${e(group.category)}</h3><ul class="shop-list">${items}</ul></div>`;
+    })
     .join("");
-  const pricing = input.pricing
-    ? `<section id="pricing"><h2>物价与预算</h2>
-      <div class="table-wrap"><table class="summary-table"><tbody>
-        <tr><th>参考总价</th><td>${input.pricing.total_range ? `¥${money(input.pricing.total_range.low)}–${money(input.pricing.total_range.high)}` : "已估价小计不可得"}</td></tr>
-        <tr><th>预算性质</th><td>${budgetLabel(input.pricing.budget_status)}</td></tr>
-        <tr><th>请求地区</th><td>${e(input.pricing.requested_region)}</td></tr>
-        <tr><th>价格覆盖</th><td>${e(input.pricing.coverage_summary)}</td></tr>
-        ${input.pricing.budget_note ? `<tr><th>说明</th><td>${e(input.pricing.budget_note)}</td></tr>` : ""}
-      </tbody></table></div>
-      <div class="table-wrap"><table><thead><tr><th>食材</th><th>采购量</th><th>参考单价</th><th>预计小计</th><th>报价地区</th><th>口径与来源</th><th>数据时间</th><th>可信度</th></tr></thead><tbody>${input.pricing.items
-        .map(
-          (item) =>
-            `<tr><td>${e(item.name)}</td><td>${e(item.quantity)}</td><td>${e(item.unit_price)}</td><td>${e(item.subtotal)}</td><td>${e(item.matched_region)}</td><td>${e(`${item.basis} · ${item.source}`)}</td><td>${e(item.data_time ?? "—")}</td><td>${e(item.confidence)}</td></tr>`,
-        )
-        .join("")}</tbody></table></div>
-      </section>`
+
+  const pricingSection = input.pricing
+    ? `<section><h2>大概花多少钱</h2>
+      <div class="card">
+        <span class="tape tape-jade"></span>
+        <p class="budget-line"><strong>${budgetHeadline(input.pricing.budget_status, input.pricing.total_range ?? null)}</strong></p>
+        <p class="budget-range">${e(input.pricing.coverage_summary)}${input.pricing.budget_note ? ` ${e(input.pricing.budget_note)}` : ""}</p>
+        <div class="price-rows">${input.pricing.items
+          .map(
+            (item) => `<div class="price-row">
+              <span class="price-name">${e(item.name)}</span>
+              <span class="price-detail">${e(item.quantity)} · ${e(item.basis)} · ${e(item.source)}</span>
+              <span class="price-amount${item.subtotal ? "" : " na"}">${e(item.subtotal || "没查到")}</span>
+            </div>`,
+          )
+          .join("")}</div>
+      </div>
+    </section>`
     : "";
-  const notices = input.notices?.length
-    ? `<section><h2>假设与提醒</h2><ul>${input.notices.map((notice) => `<li>${e(notice)}</li>`).join("")}</ul></section>`
+
+  const noticesSection = input.notices?.length
+    ? `<section><h2>顺便提醒你</h2><div class="notes">${input.notices
+        .map((notice) => `<div class="note">${e(notice)}</div>`)
+        .join("")}</div></section>`
     : "";
 
   return `<!doctype html>
 <html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${e(input.title)}</title>
-<style>
-:root{color-scheme:light dark;--bg:#f6f7f3;--surface:#fff;--text:#20231f;--muted:#62685f;--line:#d8ddd3;--accent:#2f6f4e;--soft:#e8f1eb}@media(prefers-color-scheme:dark){:root{--bg:#151815;--surface:#1e221f;--text:#edf1ec;--muted:#a9b1a8;--line:#3a423b;--accent:#79bd94;--soft:#263b2e}}*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--text);font:15px/1.65 system-ui,-apple-system,"Segoe UI","Microsoft YaHei",sans-serif}main{max-width:1100px;margin:auto;padding:32px 20px 64px}header{margin-bottom:28px}h1{font-size:clamp(1.8rem,4vw,2.7rem);line-height:1.2;margin:0 0 16px}h2{margin:36px 0 14px;font-size:1.4rem}h3{margin:20px 0 8px;font-size:1rem}.facts{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:10px}.fact,details{background:var(--surface);border:1px solid var(--line);border-radius:12px}.fact{padding:12px 14px}.fact span{display:block;color:var(--muted);font-size:.85rem}.table-wrap{overflow-x:auto;background:var(--surface);border:1px solid var(--line);border-radius:12px;margin:10px 0 18px}table{width:100%;border-collapse:collapse;min-width:620px}th,td{text-align:left;vertical-align:top;padding:10px 12px;border-bottom:1px solid var(--line)}thead th{background:var(--soft);font-weight:600}tbody tr:last-child td,tbody tr:last-child th{border-bottom:0}.summary-table{min-width:0}.summary-table th{width:150px;background:var(--soft)}details{margin:12px 0;padding:0 16px}summary{cursor:pointer;padding:14px 0;font-weight:600}.meta{display:block;color:var(--muted);font-size:.85rem;font-weight:400}.recipe-grid{display:grid;grid-template-columns:minmax(240px,.8fr) minmax(320px,1.2fr);gap:28px;padding:0 0 18px}ul,ol{padding-left:1.3rem}li{margin:.42rem 0}a{color:var(--accent)}@media(max-width:680px){main{padding:22px 12px 48px}.recipe-grid{grid-template-columns:1fr}.facts{grid-template-columns:1fr 1fr}th,td{padding:8px 9px}}@media print{body{background:#fff;color:#000}main{max-width:none;padding:0}.fact,details,.table-wrap{border-color:#bbb}details{break-inside:avoid}details:not([open])>*:not(summary){display:block}summary{list-style:none}.table-wrap{overflow:visible}table{min-width:0;font-size:10pt}h2{break-after:avoid}}
-</style></head><body><main><header><h1>${e(input.title)}</h1>${summaryItems.length ? `<div class="facts">${summaryItems.map(([label, value]) => `<div class="fact"><span>${e(label!)}</span>${e(value!)}</div>`).join("")}</div>` : ""}</header>
-<section><h2>计划菜单</h2><div class="table-wrap"><table><thead><tr><th>日期</th><th>餐次</th><th>菜单</th></tr></thead><tbody>${menuRows}</tbody></table></div></section>
-<section><h2>菜谱</h2>${recipeCards}</section>
-<section><h2>采购清单</h2>${shoppingSections}</section>${pricing}${notices}
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=ZCOOL+KuaiLe&display=swap">
+<style>${STYLE}</style>
+</head><body><main>
+<header>
+  <h1>${e(input.title)}</h1>
+  ${factStickers.length ? `<div class="facts">${factStickers.map(([label, value]) => `<span class="sticker"><span class="sticker-label">${e(label!)}</span> ${e(value!)}</span>`).join("")}</div>` : ""}
+</header>
+<section><h2>今天吃这些</h2><div class="card menu-card"><span class="tape tape-jade"></span>${menuRows}</div></section>
+<section><h2>怎么做</h2>${recipeCards}</section>
+<section><h2>要买什么</h2>
+  <p class="shop-hint">买完一样可以勾一下，刷新页面会重新清空，不会帮你记住。</p>
+  <div class="card shop-card"><span class="tape tape-jade"></span>${shoppingSections}</div>
+</section>
+${pricingSection}
+${noticesSection}
 </main></body></html>`;
 }
+
+const STYLE = `
+:root{color-scheme:light dark;--bg:#EBE7D9;--surface:#F7F5EC;--ink:#26261F;--muted:#6B6A57;--jade:#2F6B4F;--spice:#B23A2E;--line:#D4CFB9;--tape-a:#D8A63E;--tape-b:#C97B72}
+@media(prefers-color-scheme:dark){:root{--bg:#1B1D18;--surface:#24261F;--ink:#EDE9DA;--muted:#A6A48C;--jade:#6FBE95;--spice:#E2775F;--line:#3A3C31;--tape-a:#C79A4B;--tape-b:#C98A80}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.7 -apple-system,system-ui,"PingFang SC","Microsoft YaHei","Heiti SC",sans-serif}
+main{max-width:900px;margin:0 auto;padding:44px 20px 96px}
+.hand{font-family:"ZCOOL KuaiLe","Microsoft YaHei",sans-serif;font-weight:400}
+h1,h2,h3{color:var(--ink);text-wrap:balance}
+h1{font-family:"ZCOOL KuaiLe","Microsoft YaHei",sans-serif;font-size:clamp(2rem,4.6vw,2.7rem);font-weight:400;line-height:1.3;margin:0 0 8px}
+h2{font-family:"ZCOOL KuaiLe","Microsoft YaHei",sans-serif;font-weight:400;font-size:1.55rem;margin:0 0 20px;display:inline-block;text-decoration:underline wavy var(--jade);text-decoration-thickness:2px;text-underline-offset:6px}
+h3{font-size:1.2rem;font-weight:700;margin:0}
+section{margin:56px 0}
+header{margin-bottom:52px}
+.facts{display:flex;flex-wrap:wrap;gap:12px}
+.sticker{display:inline-flex;align-items:baseline;gap:6px;background:var(--surface);border:1.5px solid var(--line);border-radius:14px 16px 15px 13px;padding:7px 14px;font-size:.88rem;transform:rotate(-1.2deg)}
+.sticker:nth-child(2n){transform:rotate(1deg)}
+.sticker:nth-child(3n){transform:rotate(-0.5deg)}
+.sticker-label{color:var(--muted);font-size:.75rem}
+.card{position:relative;background:var(--surface);border:1.5px solid var(--line);border-radius:18px 20px 19px 17px;padding:28px 26px;box-shadow:0 3px 0 var(--line)}
+.tape{position:absolute;top:-14px;height:26px;width:88px;opacity:.75;border-radius:2px}
+.tape::after{content:"";position:absolute;inset:0;background:repeating-linear-gradient(45deg,rgba(255,255,255,.35) 0 6px,transparent 6px 12px)}
+.tape-jade{background:var(--jade);left:28px;transform:rotate(-5deg)}
+.tape-mustard{background:var(--tape-a);right:34px;transform:rotate(4deg)}
+.tape-rose{background:var(--tape-b);left:50%;transform:translateX(-50%) rotate(-2deg)}
+.menu-row{display:flex;justify-content:space-between;align-items:baseline;flex-wrap:wrap;gap:6px 16px;padding:10px 0;border-bottom:1px dashed var(--line)}
+.menu-row:last-child{border-bottom:0}
+.menu-when{color:var(--muted);font-size:.85rem;min-width:110px}
+.menu-dishes{display:flex;flex-wrap:wrap;gap:8px 18px;flex:1}
+.dish-name{font-weight:700}
+.dish-meta{color:var(--muted);font-size:.82rem}
+.recipe-card{margin-bottom:34px;transform:rotate(-0.3deg)}
+.recipe-card:nth-of-type(2n){transform:rotate(0.4deg)}
+.recipe-card:last-of-type{margin-bottom:0}
+.recipe-head{margin-bottom:6px;padding-top:6px}
+.recipe-sub{color:var(--muted);font-size:.85rem;margin:2px 0 20px}
+.recipe-grid{display:grid;grid-template-columns:minmax(220px,.85fr) minmax(280px,1.15fr);gap:32px}
+.col-label{font-family:"ZCOOL KuaiLe","Microsoft YaHei",sans-serif;font-size:1.05rem;color:var(--jade);margin:0 0 12px}
+ul.plain-list{list-style:none;margin:0;padding:0}
+ul.plain-list li{display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;padding:7px 0;border-bottom:1px dashed var(--line);font-size:.96rem}
+ul.plain-list li:last-child{border-bottom:0}
+.ing-prep{color:var(--muted);font-size:.85rem}
+.ing-qty{color:var(--muted);font-variant-numeric:tabular-nums;white-space:nowrap}
+.tag-optional{display:inline-block;margin-left:6px;padding:0 7px;font-size:.72rem;color:var(--muted);border:1.5px dashed var(--line);border-radius:9px 10px 8px 11px}
+ol.steps{margin:0;padding-left:1.3rem}
+ol.steps li{margin:0 0 .75rem;font-size:.97rem}
+ol.steps li::marker{color:var(--jade);font-weight:700}
+.shop-hint{color:var(--muted);font-size:.85rem;margin:-8px 0 20px}
+.shop-card{display:flex;flex-direction:column;gap:22px}
+.shop-section:not(:last-child){padding-bottom:22px;border-bottom:1px dashed var(--line)}
+.shop-section h3{font-size:1.2rem;margin:0 0 10px;color:var(--jade);font-weight:400}
+ul.shop-list{list-style:none;margin:0;padding:0}
+.shop-item{display:flex;align-items:flex-start;gap:10px;padding:6px 0}
+.shop-item input.check{appearance:none;-webkit-appearance:none;flex:none;width:18px;height:18px;margin-top:3px;border:2px solid var(--jade);border-radius:3px 4px 3px 5px;cursor:pointer;position:relative;background:transparent}
+.shop-item input.check:checked{background:var(--jade)}
+.shop-item input.check:checked::after{content:"";position:absolute;left:4px;top:0;width:5px;height:9px;border:solid var(--surface);border-width:0 2px 2px 0;transform:rotate(40deg)}
+.shop-item label{flex:1;cursor:pointer;display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;font-size:.95rem}
+.shop-item input.check:checked ~ label{color:var(--muted);text-decoration:line-through;text-decoration-color:var(--muted)}
+.shop-used{display:block;color:var(--muted);font-size:.78rem;margin-top:1px}
+.budget-line{margin-bottom:6px;font-size:1.02rem}
+.budget-range{color:var(--muted);font-size:.88rem;margin:2px 0 22px}
+.price-rows{display:flex;flex-direction:column;gap:10px}
+.price-row{display:flex;justify-content:space-between;align-items:baseline;gap:14px;padding-bottom:10px;border-bottom:1px dashed var(--line);flex-wrap:wrap}
+.price-row:last-child{border-bottom:0;padding-bottom:0}
+.price-name{font-weight:700;min-width:64px}
+.price-detail{color:var(--muted);font-size:.85rem;flex:1}
+.price-amount{font-variant-numeric:tabular-nums;white-space:nowrap}
+.price-amount.na{color:var(--muted)}
+.notes{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:18px}
+.note{background:var(--surface);border:1.5px solid var(--line);border-left:4px solid var(--spice);border-radius:4px 14px 14px 4px;padding:16px 18px;font-size:.92rem;color:var(--ink);transform:rotate(-0.6deg)}
+.note:nth-child(2n){transform:rotate(0.7deg)}
+@media(max-width:680px){main{padding:30px 14px 72px}.recipe-grid{grid-template-columns:1fr}.card{padding:22px 18px}}
+@media print{body{background:#fff;color:#000}main{max-width:none;padding:0}.card,.note{box-shadow:none;transform:none;break-inside:avoid}.tape{display:none}}
+`;
 
 function e(value: string): string {
   return value
@@ -144,7 +252,7 @@ function e(value: string): string {
 }
 
 function quantity(value: number | null, unit: string | null): string {
-  if (value === null || unit === null) return "按说明";
+  if (value === null || unit === null) return "适量";
   return `${n(value)} ${e(unit)}`;
 }
 
@@ -156,8 +264,13 @@ function money(value: number): string {
   return value.toFixed(2);
 }
 
-function budgetLabel(status: "verified" | "reference_only" | "incomplete"): string {
-  if (status === "verified") return "已验证";
-  if (status === "reference_only") return "参考估算（不是结账承诺）";
-  return "估价不完整";
+function budgetHeadline(
+  status: "verified" | "reference_only" | "incomplete",
+  range: { low: number; high: number } | null,
+): string {
+  if (!range) return "这次没能查到可靠的价格，具体花费还不清楚";
+  const amount = `大概 ¥${money(range.low)} – ${money(range.high)} 元`;
+  if (status === "verified") return `${amount}（这次价格查得比较全，可信度较高）`;
+  if (status === "incomplete") return `${amount}（这次没查全，实际可能比这个贵）`;
+  return `${amount}（只是参考，不是最后结账的价格）`;
 }
