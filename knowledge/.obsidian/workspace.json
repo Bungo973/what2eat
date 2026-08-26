@@ -4,21 +4,21 @@
     "type": "split",
     "children": [
       {
-        "id": "da059543a168a2e6",
+        "id": "c760acaa13f7638c",
         "type": "tabs",
         "children": [
           {
-            "id": "0979ad6df0da8637",
+            "id": "3205812ff7a6dd0b",
             "type": "leaf",
             "state": {
               "type": "markdown",
               "state": {
-                "file": "menu/AGENTS.md",
+                "file": "menu/recipes/egg-fried-rice/蛋炒饭-v1.md",
                 "mode": "source",
                 "source": false
               },
               "icon": "lucide-file",
-              "title": "AGENTS"
+              "title": "蛋炒饭-v1"
             }
           }
         ]
@@ -99,7 +99,6 @@
             "state": {
               "type": "backlink",
               "state": {
-                "file": "menu/AGENTS.md",
                 "collapseAll": false,
                 "extraContext": false,
                 "sortOrder": "alphabetical",
@@ -169,12 +168,34 @@
               "icon": "lucide-list",
               "title": "大纲"
             }
+          },
+          {
+            "id": "65f1bf768c7b6603",
+            "type": "leaf",
+            "state": {
+              "type": "claudian-view",
+              "state": {
+                "tabWorkspace": {
+                  "version": 1,
+                  "openTabs": [
+                    {
+                      "tabId": "tab-1787663266162-oey5ogp",
+                      "conversationId": "conv-1787663305580-r72pjep4b"
+                    }
+                  ],
+                  "activeTabId": "tab-1787663266162-oey5ogp"
+                }
+              },
+              "icon": "bot",
+              "title": "Claudian"
+            }
           }
-        ]
+        ],
+        "currentTab": 5
       }
     ],
     "direction": "horizontal",
-    "width": 219.9000244140625
+    "width": 503.0999755859375
   },
   "left-ribbon": {
     "hiddenItems": {
@@ -188,43 +209,43 @@
       "realclaudian:Open Claudian": false
     }
   },
-  "active": "0979ad6df0da8637",
+  "active": "3205812ff7a6dd0b",
   "lastOpenFiles": [
-    "menu/recipes/tomato-eggs/番茄炒蛋-v2.md",
-    "menu/AGENTS.md",
-    "menu/templates/recipe-template.md.tmp.13064.e67303bfb90f",
-    "menu/relations/tomato-eggs-garlic-broccoli-pair-v1.md",
-    "menu/recipes/smashed-cucumber/拍黄瓜-v2.md",
-    "menu/drafts/smashed-cucumber-v2.md",
-    "menu/drafts/tomato-eggs-v2.md",
+    "menu/templates/recipe-template.md.tmp.13568.726a784f031f",
+    "menu/维护说明.md.tmp.13568.06aefcd44bf4",
+    "menu/drafts/fish-fragrant-pork-v1.md",
+    "menu/templates/recipe-template.md.tmp.13568.85f59967fa0d",
+    "menu/维护说明.md.tmp.13568.ffa404e510ca",
+    "menu/维护说明.md.tmp.13568.238dcedb5e7d",
+    "menu/recipes/steamed-sea-bass/清蒸鲈鱼-v1.md.tmp.13568.db60aa174fd8",
+    "menu/recipes/steamed-chicken-shiitake/香菇蒸鸡-v1.md.tmp.13568.f349fb04816a",
+    "menu/recipes/oat-milk-porridge/燕麦牛奶粥-v1.md.tmp.13568.003fb15721d4",
+    "menu/recipes/smashed-cucumber/拍黄瓜-v1.md.tmp.13568.a2156165d93f",
+    "menu/recipes/tomato-eggs/番茄炒蛋-v1.md.tmp.13568.3491b8b2b4b5",
     "menu/维护说明.md",
-    "menu/首页.md",
-    "menu/ingredients/ingredients.md",
-    "menu/prices/beijing-benchmark.md",
-    "menu/substitutions/smashed-cucumber-dried-chili-omit-v1.md",
-    "menu/substitutions/oat-porridge-sugar-omit-v1.md",
-    "menu/relations/mapo-tofu-choy-sum-pair-v1.md.tmp.20368.0bef4a00c215",
-    "menu/relations/tomato-eggs-garlic-broccoli-pair-v1.md.tmp.20368.e710b70bdade",
-    "menu/relations/steamed-chicken-choy-sum-pair-v1.md.tmp.20368.88b1dfcbb3d9",
-    "menu/substitutions/oat-porridge-sugar-omit-v1.md.tmp.20368.0ca969762d6d",
-    "menu/substitutions/smashed-cucumber-dried-chili-omit-v1.md.tmp.20368.d2537c699ea1",
-    "menu/substitutions/tomato-eggs-scallion-omit-v1.md.tmp.20368.f728f494a973",
-    "menu/substitutions/tomato-eggs-scallion-omit-v1.md.tmp.20368.acf8d423b2e9",
-    "menu/relations/garlic-broccoli-choy-sum-alternative-v1.md",
-    "menu/recipes/hot-sour-potatoes/酸辣土豆丝-v1.md",
-    "recipes/garlic-broccoli/v1.md",
-    "menu/首页.md.tmp.20368.23b5e88b3880",
-    "menu/recipes/oat-milk-porridge/燕麦牛奶粥-v1.md",
-    "menu/recipes/smashed-cucumber/拍黄瓜-v1.md",
-    "menu/recipes/cola-chicken-wings/可乐鸡翅-v1.md",
-    "menu/recipes/garlic-broccoli/蒜蓉西兰花-v1.md",
-    "menu/recipes/steamed-sea-bass/清蒸鲈鱼-v1.md",
-    "menu/recipes/scallion-egg-pancakes/葱香鸡蛋软饼-v1.md",
-    "menu/recipes/tomato-beef-stew/番茄牛腩-v1.md",
+    "menu/drafts/carrot-scrambled-eggs-v1.md",
+    "menu/recipes/millet-porridge/小米粥-v1.md",
+    "menu/recipes/millet-porridge",
+    "menu/recipes/carrot-scrambled-eggs/胡萝卜炒鸡蛋-v1.md",
+    "menu/recipes/cabbage-tofu-soup/白菜豆腐汤-v1.md",
+    "menu/recipes/vinegar-cabbage/醋溜白菜-v1.md",
+    "menu/recipes/green-pepper-pork-strips/青椒肉丝-v1.md",
+    "menu/recipes/tomato-egg-noodles/番茄鸡蛋面-v1.md",
+    "menu/drafts/tomato-egg-noodles-v1.md",
+    "menu/drafts/vinegar-cabbage-v1.md",
+    "menu/drafts/green-pepper-pork-strips-v1.md",
+    "menu/drafts/cabbage-tofu-soup-v1.md",
+    "menu/drafts/millet-porridge-v1.md",
+    "menu/recipes/winter-melon-rib-soup/冬瓜排骨汤-v1.md",
     "menu/recipes/tomato-eggs/番茄炒蛋-v1.md",
-    "menu/recipes/kung-pao-chicken/宫保鸡丁-v1.md",
+    "menu/recipes/tomato-beef-stew/番茄牛腩-v1.md",
+    "menu/recipes/steamed-sea-bass/清蒸鲈鱼-v1.md",
     "menu/recipes/steamed-chicken-shiitake/香菇蒸鸡-v1.md",
+    "menu/recipes/smashed-cucumber/拍黄瓜-v1.md",
+    "menu/recipes/scallion-egg-pancakes/葱香鸡蛋软饼-v1.md",
+    "menu/recipes/oat-milk-porridge/燕麦牛奶粥-v1.md",
     "menu/recipes/mapo-tofu/麻婆豆腐-v1.md",
-    "recipes/garlic-broccoli"
+    "menu/recipes/kung-pao-chicken/宫保鸡丁-v1.md",
+    "menu/recipes/hot-sour-potatoes/酸辣土豆丝-v1.md"
   ]
 }

@@ -167,6 +167,17 @@ ingredients:
         terms: [香菇]
         external_id: "1244"
         unit_hint: 公斤
+  - id: wood_ear
+    canonical_name: 木耳
+    aliases: [黑木耳, 干木耳, 云耳]
+    category: vegetable
+    default_purchase_unit: g
+    conversions: []
+    allergen_tags: []
+    price_query_terms:
+      - source: xinfadi
+        terms: [木耳]
+        unit_hint: 斤
   - id: tofu
     canonical_name: 豆腐
     aliases: [北豆腐, 南豆腐, 嫩豆腐]
@@ -225,6 +236,17 @@ ingredients:
     conversions: []
     allergen_tags: []
     price_query_terms: []
+  - id: pork_loin
+    canonical_name: 猪里脊
+    aliases: [里脊肉, 里脊, 猪瘦肉]
+    category: meat
+    default_purchase_unit: 斤
+    conversions: []
+    allergen_tags: []
+    price_query_terms:
+      - source: xinfadi
+        terms: [里脊]
+        unit_hint: 斤
   - id: chicken_wings
     canonical_name: 鸡翅
     aliases: [鸡中翅]
@@ -246,6 +268,17 @@ ingredients:
     price_query_terms:
       - source: xinfadi
         terms: [鸡胸]
+        unit_hint: 斤
+  - id: chicken_thigh
+    canonical_name: 鸡腿肉
+    aliases: [鸡腿, 去骨鸡腿肉, 琵琶腿]
+    category: meat
+    default_purchase_unit: 斤
+    conversions: []
+    allergen_tags: []
+    price_query_terms:
+      - source: xinfadi
+        terms: [鸡腿]
         unit_hint: 斤
   - id: beef_brisket
     canonical_name: 牛腩
@@ -339,6 +372,17 @@ ingredients:
     conversions: []
     allergen_tags: []
     price_query_terms: []
+  - id: millet
+    canonical_name: 小米
+    aliases: [黄小米, 小黄米]
+    category: grain
+    default_purchase_unit: g
+    conversions: []
+    allergen_tags: []
+    price_query_terms:
+      - source: xinfadi
+        terms: [小米]
+        unit_hint: 斤
   - id: dried_noodles
     canonical_name: 挂面
     aliases: [面条]
