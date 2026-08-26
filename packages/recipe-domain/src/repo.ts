@@ -13,12 +13,10 @@ import { dataInvalid, invalidArgument, notFound } from "./errors.ts";
 import {
   validateCatalog,
   validateFrontmatter,
-  validateRecipeRelation,
   validateSubstitution,
 } from "./schema.ts";
 import type {
   IngredientCatalog,
-  RecipeRelation,
   RecipeDocument,
   RecipeMeta,
   RecipeStatus,
@@ -75,7 +73,6 @@ export class KnowledgeRepo {
   private draftsCache: RecipeDocument[] | null = null;
   private catalogCache: IngredientCatalog | null = null;
   private substitutionsCache: SubstitutionRule[] | null = null;
-  private relationsCache: RecipeRelation[] | null = null;
 
   constructor(knowledgeDir: string) {
     this.knowledgeDir = knowledgeDir;
@@ -91,10 +88,6 @@ export class KnowledgeRepo {
 
   get substitutionsRoot(): string {
     return join(this.knowledgeDir, "substitutions");
-  }
-
-  get relationsRoot(): string {
-    return join(this.knowledgeDir, "relations");
   }
 
   /** 扫描全部菜谱与草稿，带结构校验。 */
@@ -244,45 +237,6 @@ export class KnowledgeRepo {
     return latestPublished(this.loadSubstitutions(), (item) => item.substitution_id);
   }
 
-  loadRecipeRelations(): RecipeRelation[] {
-    if (this.relationsCache) return this.relationsCache;
-    if (!existsSync(this.relationsRoot)) {
-      this.relationsCache = [];
-      return [];
-    }
-    const out: RecipeRelation[] = [];
-    const seen = new Set<string>();
-    for (const file of readdirSync(this.relationsRoot).filter((name) => name.endsWith(".md"))) {
-      const match = /^([a-z][a-z0-9-]*)-v(\d+)\.md$/.exec(file);
-      if (!match) throw dataInvalid(`菜谱关系文件名必须形如 <id>-vN.md: ${file}`);
-      const raw = this.loadRawDocument(join(this.relationsRoot, file), `relations/${file}`);
-      const check = validateRecipeRelation(raw.meta);
-      if (!check.ok) {
-        throw dataInvalid(`菜谱关系 schema 校验失败: ${check.message}`, { subject: file });
-      }
-      const relation = raw.meta as RecipeRelation;
-      if (relation.relation_id !== match[1] || relation.version !== Number(match[2])) {
-        throw dataInvalid(`菜谱关系 ID/版本与文件名不一致: ${file}`, { subject: file });
-      }
-      if (relation.source_recipe_id === relation.target_recipe_id) {
-        throw dataInvalid(`菜谱关系不能指向自身: ${file}`, { subject: file });
-      }
-      if (relation.status !== "draft" && !relation.published_at) {
-        throw dataInvalid(`已发布/归档菜谱关系缺少 published_at: ${file}`, { subject: file });
-      }
-      const key = `${relation.relation_id}@${relation.version}`;
-      if (seen.has(key)) throw dataInvalid(`菜谱关系版本重复: ${key}`);
-      seen.add(key);
-      out.push(relation);
-    }
-    this.relationsCache = out;
-    return out;
-  }
-
-  listPublishedRecipeRelations(): RecipeRelation[] {
-    return latestPublished(this.loadRecipeRelations(), (item) => item.relation_id);
-  }
-
   /** 某菜谱的当前状态：最高非草稿版本决定。 */
   stateOf(recipeId: string): RecipeState | null {
     const versions = this.scan().get(recipeId);
@@ -380,7 +334,6 @@ export class KnowledgeRepo {
     this.draftsCache = null;
     this.catalogCache = null;
     this.substitutionsCache = null;
-    this.relationsCache = null;
   }
 
   private loadDocument(absPath: string, relPath: string): { meta: RecipeMeta; body: string; relPath: string } {

@@ -103,6 +103,69 @@ export function publishDraft(
   };
 }
 
+export interface ReviseResult {
+  recipeId: string;
+  version: number;
+  revisedPath: string;
+  allergenFixes: string[];
+}
+
+/**
+ * 原地小改：只允许覆盖当前生效版本的内容，不升版本、不新建文件。
+ * 旧版本与归档版本仍然真正不可变——这是发布不可变规则的一个窄口子，不是取消这条规则。
+ * 无视源文件里的 recipe_id/version/status/published_at，强制沿用当前发布记录；改名一律拒绝（会改文件名，不算"原地"）。
+ */
+export function reviseInPlace(
+  repo: KnowledgeRepo,
+  catalog: CatalogIndex,
+  recipeId: string,
+  version: number,
+  sourcePath: string,
+): ReviseResult {
+  const state = repo.stateOf(recipeId);
+  if (!state) throw notFound(`菜谱不存在: ${recipeId}`, { recipe_id: recipeId });
+  if (state.currentStatus === "archived") {
+    throw conflict(`${recipeId} 已归档，归档版本不可原地修改`, { recipe_id: recipeId });
+  }
+  if (version !== state.currentVersion) {
+    throw conflict(
+      `原地小改只能作用于当前生效版本：目标 v${version}，当前 v${state.currentVersion}`,
+      { recipe_id: recipeId, version, current: state.currentVersion },
+    );
+  }
+  if (!existsSync(sourcePath)) {
+    throw invalidArgument(`源文件不存在: ${sourcePath}`);
+  }
+  const current = repo.getRecipe(recipeId, version);
+  const parsed = parseMarkdown(readFileSync(sourcePath, "utf-8"));
+  const meta = parsed.meta as unknown as RecipeMeta;
+  if (meta.name !== current.meta.name) {
+    throw dataInvalid(
+      `原地小改不允许改名（会改变文件名）：当前 "${current.meta.name}"，源文件 "${meta.name}"；改名请走 publish 升版本`,
+      { subject: recipeId },
+    );
+  }
+  meta.recipe_id = current.meta.recipe_id;
+  meta.version = current.meta.version;
+  meta.status = current.meta.status;
+  // scan() 已保证非草稿状态必有 published_at；current 来自 repo.getRecipe，取值恒定义。
+  if (current.meta.published_at) meta.published_at = current.meta.published_at;
+  delete meta.archived_reason;
+
+  const schemaCheck = validateFrontmatter(meta);
+  if (!schemaCheck.ok) {
+    throw dataInvalid(`frontmatter 校验失败: ${schemaCheck.message}`, { subject: sourcePath });
+  }
+  const { allergenFixes } = reviewAgainstCatalog(meta, catalog, { requireCatalogEntries: true });
+  if (allergenFixes.length) {
+    meta.allergens = [...new Set([...meta.allergens, ...allergenFixes])].sort();
+  }
+
+  const targetPath = repo.resolveRecipePath(recipeId, version, meta.name);
+  repo.writeRecipe({ meta, body: parsed.body, relPath: `recipes/${recipeId}/${basename(targetPath)}` });
+  return { recipeId, version, revisedPath: targetPath, allergenFixes };
+}
+
 /** 归档：创建更高版本的完整快照并置 archived，不改旧版本（PRD §9.1）。 */
 export function archiveRecipe(
   repo: KnowledgeRepo,
@@ -211,18 +274,6 @@ export function validateKnowledge(
         if (!ids.includes(recipeId)) {
           problems.push(`替换规则 ${rule.substitution_id}: 菜谱引用不存在 ${recipeId}`);
         }
-      }
-    }
-  } catch (e) {
-    problems.push((e as Error).message);
-  }
-  try {
-    for (const relation of repo.loadRecipeRelations()) {
-      if (!ids.includes(relation.source_recipe_id)) {
-        problems.push(`菜谱关系 ${relation.relation_id}: 来源菜谱不存在 ${relation.source_recipe_id}`);
-      }
-      if (!ids.includes(relation.target_recipe_id)) {
-        problems.push(`菜谱关系 ${relation.relation_id}: 目标菜谱不存在 ${relation.target_recipe_id}`);
       }
     }
   } catch (e) {

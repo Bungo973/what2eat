@@ -1,6 +1,6 @@
 import { CATEGORY_LABELS, CATEGORY_ORDER, CatalogIndex } from "./catalog.ts";
 import type { KnowledgeRepo } from "./repo.ts";
-import { fromBaseUnit, round2, toBaseUnit } from "./units.ts";
+import { dampedScale, fromBaseUnit, round2, toBaseUnit } from "./units.ts";
 import type { BaseUnit, CatalogIngredient, Warning } from "./types.ts";
 
 export interface AggregateItemInput {
@@ -97,7 +97,7 @@ export function aggregateShoppingList(
         });
         continue;
       }
-      const conv = toBaseUnit(cat, ing.quantity * scale, ing.unit);
+      const conv = toBaseUnit(cat, ing.quantity * dampedScale(ing.role, scale), ing.unit);
       if (!conv.ok) {
         entry.convertible = false;
         warnings.push({

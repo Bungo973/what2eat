@@ -10,6 +10,7 @@ import {
   KnowledgeRepo,
   RecipeSearchService,
   renderMealPlanHtml,
+  reviseInPlace,
   ToolError,
   toBaseUnit,
   validateMealPlan,
@@ -124,6 +125,7 @@ beforeAll(() => {
       name: "红烧肉",
       tags: ["braised"],
       difficulty: "medium",
+      dish_role: "protein",
       prep_minutes: 15,
       cook_minutes: 90,
       ingredients: [
@@ -137,6 +139,7 @@ beforeAll(() => {
     1,
     {
       name: "身份食材测试菜",
+      dish_role: "protein",
       // prep+cook 刻意 >30 分钟、不含 tomato，避免污染其他 search_recipes 用例的期望结果。
       prep_minutes: 15,
       cook_minutes: 90,
@@ -145,6 +148,50 @@ beforeAll(() => {
         { id: "egg", name: "鸡蛋", quantity: 3, unit: "piece", role: "garnish", optional: true, defines_dish: false },
         { id: "salt", name: "盐", quantity: null, unit: null, notes: "按口味添加", role: "seasoning", optional: true },
       ],
+    },
+  );
+  writePublished(
+    "steamed-egg-test",
+    1,
+    {
+      // 与 pork-stew/dish-def-test 同为 105 分钟、dish_role: protein，构成一个真实的同分候选组，供洗牌测试使用。
+      name: "蒸蛋测试菜",
+      dish_role: "protein",
+      prep_minutes: 15,
+      cook_minutes: 90,
+      ingredients: [
+        { id: "egg", name: "鸡蛋", quantity: 3, unit: "piece", role: "primary" },
+        { id: "salt", name: "盐", quantity: null, unit: null, notes: "按口味添加", role: "seasoning" },
+      ],
+    },
+  );
+  writePublished(
+    "scale-test",
+    1,
+    {
+      // 45 分钟、无 tomato/dish_role，避免污染既有 search_recipes 用例；专门用于份量按角色缩放测试。
+      name: "缩放测试菜",
+      prep_minutes: 20,
+      cook_minutes: 25,
+      allergens: ["egg"],
+      ingredients: [
+        { id: "pork_belly", name: "五花肉", quantity: 200, unit: "g", role: "primary" },
+        { id: "test_seasoning", name: "调味料", quantity: 10, unit: "g", role: "seasoning" },
+        { id: "test_oil", name: "食用油", quantity: 20, unit: "ml", role: "cooking_medium" },
+      ],
+    },
+  );
+  writePublished(
+    "revise-target-test",
+    1,
+    {
+      // 60 分钟、无 tomato/egg 食材但声明 egg 过敏原以保持与既有用例隔离；专门用于 reviseInPlace 测试。
+      name: "小改测试菜",
+      tags: ["original"],
+      prep_minutes: 20,
+      cook_minutes: 40,
+      allergens: ["egg"],
+      ingredients: [{ id: "salt", name: "盐", quantity: null, unit: null, notes: "按口味添加" }],
     },
   );
   mkdirSync(join(knowledgeDir, "substitutions"), { recursive: true });
@@ -257,6 +304,49 @@ describe("search_recipes", () => {
     expect(p2.items[0]!.recipe_id).not.toBe(p1.items[0]!.recipe_id);
     expect(() => search.search({ cursor: "garbage!" })).toThrowError(ToolError);
   });
+
+  it("dish_role 过滤：只返回同分类的菜谱", () => {
+    const { search } = makeServices();
+    const result = search.search({ dish_role: "protein" });
+    expect(result.items.map((i) => i.recipe_id).sort()).toEqual(
+      ["dish-def-test", "pork-stew", "steamed-egg-test"].sort(),
+    );
+    expect(search.search({ dish_role: "vegetable" }).items).toEqual([]);
+  });
+
+  it("同分候选组内部随机洗牌；翻页游标下不重复、不丢失", () => {
+    const repo = new KnowledgeRepo(knowledgeDir);
+    const catalog = new CatalogIndex(repo.loadCatalog());
+    const search = new RecipeSearchService(repo, catalog, () => 0.5);
+    const seen: string[] = [];
+    let cursor: string | null = null;
+    for (let i = 0; i < 6; i++) {
+      const page = search.search({ limit: 1, ...(cursor ? { cursor } : {}) });
+      expect(page.items.length).toBe(1);
+      seen.push(page.items[0]!.recipe_id);
+      cursor = page.next_cursor;
+    }
+    expect(new Set(seen).size).toBe(6);
+    // 15/45/60 分钟各自唯一，不参与洗牌，顺序恒定；其余 3 个 105 分钟同分组洗牌但不重复不丢失。
+    expect(seen[0]).toBe("tomato-eggs");
+    expect(seen[1]).toBe("scale-test");
+    expect(seen[2]).toBe("revise-target-test");
+    expect(cursor).toBeNull();
+  });
+
+  it("默认随机源下，不同次全新查询的同分组顺序会变化", () => {
+    const { search } = makeServices();
+    const orders = new Set<string>();
+    for (let i = 0; i < 30; i++) {
+      const result = search.search({ limit: 10 });
+      const tieOrder = result.items
+        .filter((item) => item.total_minutes === 105)
+        .map((item) => item.recipe_id)
+        .join(",");
+      orders.add(tieOrder);
+    }
+    expect(orders.size).toBeGreaterThan(1);
+  });
 });
 
 describe("grep_recipe_docs", () => {
@@ -299,6 +389,17 @@ describe("read_recipe", () => {
     expect(result.raw_markdown.startsWith("---")).toBe(true);
     expect(result.raw_markdown).toContain("## 做法");
   });
+
+  it("按食材角色缩放：调味/介质五折，主料线性", () => {
+    const { search } = makeServices();
+    const result = search.read({ recipe_id: "scale-test", servings: 4, format: "parsed" }) as {
+      scaled_ingredients: Array<{ id: string; quantity: number | null }>;
+    };
+    const byId = new Map(result.scaled_ingredients.map((i) => [i.id, i.quantity]));
+    expect(byId.get("pork_belly")).toBe(400);
+    expect(byId.get("test_seasoning")).toBe(15);
+    expect(byId.get("test_oil")).toBe(30);
+  });
 });
 
 describe("find_replacements：defines_dish 食材身份约束", () => {
@@ -337,6 +438,73 @@ describe("find_replacements：defines_dish 食材身份约束", () => {
     });
     expect(result.substitutions.some((s) => s.from_ingredient === "pork_belly")).toBe(false);
     expect(result.substitutions.some((s) => s.from_ingredient === "egg")).toBe(true);
+  });
+
+  it("整菜候选来自同 dish_role 的确定性检索，不再依赖人工菜谱关系", () => {
+    const { repo, catalog, search } = makeServices();
+    const result = findReplacements(repo, catalog, search, {
+      recipe_id: "dish-def-test",
+      reason: "preference",
+    });
+    expect(result.recipe_alternatives.length).toBeGreaterThan(0);
+    expect(result.recipe_alternatives.every((a) => a.relation_type === "derived")).toBe(true);
+    expect(result.recipe_alternatives.some((a) => a.recipe_id === "steamed-egg-test")).toBe(true);
+  });
+
+  it("菜谱未标注 dish_role 时给出 NO_DISH_ROLE_ON_BASE 提示", () => {
+    const { repo, catalog, search } = makeServices();
+    const result = findReplacements(repo, catalog, search, {
+      recipe_id: "tomato-eggs",
+      reason: "preference",
+    });
+    expect(result.warnings.some((w) => w.code === "NO_DISH_ROLE_ON_BASE")).toBe(true);
+  });
+});
+
+describe("原地小改（reviseInPlace）", () => {
+  it("正常原地改成功：内容更新，身份字段（recipe_id/version/status/published_at）强制沿用当前发布记录", () => {
+    const { repo, catalog } = makeServices();
+    const before = repo.getRecipe("revise-target-test", 1);
+    const tamperedMeta = {
+      ...before.meta,
+      tags: ["revised"],
+      recipe_id: "tampered-id",
+      version: 99,
+      status: "draft",
+    };
+    const sourcePath = join(knowledgeDir, "tmp-revise-source.md");
+    writeFileSync(sourcePath, mdFromMeta(tamperedMeta as unknown as Record<string, unknown>), "utf-8");
+
+    const result = reviseInPlace(repo, catalog, "revise-target-test", 1, sourcePath);
+    expect(result.version).toBe(1);
+
+    const after = new KnowledgeRepo(knowledgeDir).getRecipe("revise-target-test", 1);
+    expect(after.meta.tags).toEqual(["revised"]);
+    expect(after.meta.recipe_id).toBe("revise-target-test");
+    expect(after.meta.version).toBe(1);
+    expect(after.meta.status).toBe("published");
+    expect(after.meta.published_at).toBe(before.meta.published_at);
+  });
+
+  it("拒绝改动非当前生效版本", () => {
+    const { repo, catalog } = makeServices();
+    const sourcePath = join(knowledgeDir, "tmp-revise-old.md");
+    writeFileSync(sourcePath, mdFromMeta(baseMeta("tomato-eggs", 1)), "utf-8");
+    expect(() => reviseInPlace(repo, catalog, "tomato-eggs", 1, sourcePath)).toThrowError(ToolError);
+  });
+
+  it("拒绝改名（改名会改变文件名，应走 publish 升版本）", () => {
+    const { repo, catalog } = makeServices();
+    const current = repo.getRecipe("revise-target-test", 1);
+    const sourcePath = join(knowledgeDir, "tmp-revise-rename.md");
+    writeFileSync(
+      sourcePath,
+      mdFromMeta({ ...current.meta, name: "改了名字" } as unknown as Record<string, unknown>),
+      "utf-8",
+    );
+    expect(() => reviseInPlace(repo, catalog, "revise-target-test", 1, sourcePath)).toThrowError(
+      ToolError,
+    );
   });
 });
 

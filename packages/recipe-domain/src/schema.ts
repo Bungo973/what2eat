@@ -41,7 +41,6 @@ function getAjv(): Ajv {
     join(root, "knowledge", "ingredient-catalog.schema.json"),
     join(root, "knowledge", "benchmark-prices.schema.json"),
     join(root, "knowledge", "substitution.schema.json"),
-    join(root, "knowledge", "recipe-relation.schema.json"),
   ];
   for (const file of files) {
     const schema = JSON.parse(readFileSync(file, "utf-8")) as AnySchema & { $id?: string };
@@ -88,12 +87,6 @@ export function validateBenchmarkPrices(doc: unknown): { ok: true } | { ok: fals
 
 export function validateSubstitution(doc: unknown): { ok: true } | { ok: false; message: string } {
   const validate = compile("substitution.schema.json");
-  if (validate(doc)) return { ok: true };
-  return { ok: false, message: formatErrors(validate) };
-}
-
-export function validateRecipeRelation(doc: unknown): { ok: true } | { ok: false; message: string } {
-  const validate = compile("recipe-relation.schema.json");
   if (validate(doc)) return { ok: true };
   return { ok: false, message: formatErrors(validate) };
 }

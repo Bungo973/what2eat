@@ -42,6 +42,10 @@
       "items": { "type": "string", "pattern": "^[a-z][a-z0-9-]*$", "description": "可用厨具列表；菜谱所需厨具必须是它的子集" }
     },
     "difficulty": { "enum": ["easy", "medium", "hard"] },
+    "dish_role": {
+      "enum": ["protein", "vegetable", "soup", "staple", "cold_dish", "mixed", "other"],
+      "description": "按菜品在一餐里的角色过滤，用于配餐/整菜候选检索"
+    },
     "limit": { "$ref": "https://what2eat.dev/schemas/common.schema.json#/$defs/limit" },
     "cursor": { "$ref": "https://what2eat.dev/schemas/common.schema.json#/$defs/cursor" }
   },

@@ -98,10 +98,11 @@ HTML 只承载工具和 Agent 已经确定的结果，不在渲染阶段新增�
 
 呈现 `find_replacements` 结果时，按食材是否决定菜品身份分别措辞：
 
-- `warnings` 含 `DISH_DEFINING_INGREDIENT_UNAVAILABLE` 时，对应食材决定这道菜的身份；只能从 `recipe_alternatives`（`variant_of`/`alternative_to` 优先于 `derived`）呈现为换成其他菜，并明确说是"核心食材缺货/不吃，换了几个类似的其他菜"一类的表达。不得说成"稍微调整一下""省略一下就行"等暗示仍是同一道菜的话术，也不得为该食材编造同菜内的省略或替换方案；`substitutions` 中不会再包含该食材，不需要额外过滤。
+- `warnings` 含 `DISH_DEFINING_INGREDIENT_UNAVAILABLE` 时，对应食材决定这道菜的身份；只能从 `recipe_alternatives` 呈现为换成其他菜，并明确说是"核心食材缺货/不吃，换了几个类似的其他菜"一类的表达。不得说成"稍微调整一下""省略一下就行"等暗示仍是同一道菜的话术，也不得为该食材编造同菜内的省略或替换方案；`substitutions` 中不会再包含该食材，不需要额外过滤。
 - 未触发该警告、且 `substitutions` 命中已发布规则时，可以按"同一道菜的调整"措辞呈现（例如"可以省略/替换某食材，其余步骤不变"），依据必须来自返回的 `step_changes`/`effects`，不得脱离规则内容自行编造替换效果或用量换算。
-- `substitutions` 为空且没有 `DISH_DEFINING_INGREDIENT_UNAVAILABLE`（即只有 `NO_CURATED_REPLACEMENT`）时，如实说明没有审核过的同菜调整方案，只呈现整菜候选，不得假装存在一个未经审核的调整方案。
-- `recipe_alternatives` 中 `relation_type: derived` 的候选来自确定性过滤，未经人工审核搭配关系；采用前仍需按标准工作流重新读取正文、汇总采购、报价和校验，不得直接当作已确认可用的替代菜谱呈现。
+- `substitutions` 为空且没有 `DISH_DEFINING_INGREDIENT_UNAVAILABLE`（即只有 `NO_CURATED_REPLACEMENT`）时，如实说明没有审核过的同菜调整方案，只呈现整菜候选，不得假装存在一个未经审核的调整方案。多数菜谱都会落在这一档——`NO_CURATED_REPLACEMENT` 很常见，不是异常。
+- `recipe_alternatives` 现在全部是 `relation_type: derived`：候选来自与原菜谱同 `dish_role`（同属荤/素/汤/主食/凉菜）且通过硬过滤的确定性检索，不是人工审核过的搭配/替代关系。采用前仍需按标准工作流重新读取正文、汇总采购、报价和校验，不得直接当作已确认可用的替代菜谱呈现，也不得暗示"这几道菜特别搭"这类未经人工判断的关联。
+- `warnings` 含 `NO_DISH_ROLE_ON_BASE` 时，原菜谱尚未标注 `dish_role`，整菜候选未按分类过滤，可能混入不同类型的菜；呈现候选时应提示用户自行判断是否合适，不得默认候选已经过分类筛选。
 
 ## 局部修改
 

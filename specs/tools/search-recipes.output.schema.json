@@ -31,6 +31,7 @@
           "total_minutes": { "type": "integer", "minimum": 0 },
           "meal_types": { "type": "array", "items": { "enum": ["breakfast", "lunch", "dinner", "snack"] } },
           "difficulty": { "enum": ["easy", "medium", "hard"] },
+          "dish_role": { "enum": ["protein", "vegetable", "soup", "staple", "cold_dish", "mixed", "other"] },
           "tags": { "type": "array", "items": { "type": "string" } },
           "allergens": { "type": "array", "items": { "type": "string" } },
           "match": {

@@ -7,6 +7,7 @@ import {
   archiveRecipe,
   createDraftFromSource,
   publishDraft,
+  reviseInPlace,
   rebuildIndex,
   validateKnowledge,
 } from "../publish.ts";
@@ -17,6 +18,8 @@ const HELP = `what2eat 维护者 CLI（PRD §11）
   npm run recipe -- validate                校验知识库
   npm run recipe -- create-draft <file.md>  从源文档创建下一版草稿
   npm run recipe -- publish <recipe_id> <version>  发布草稿为不可变版本
+  npm run recipe -- revise <recipe_id> <version> <source.md> --minor-edit
+                                             原地小改当前生效版本，不升版本（不改内容身份，仅用于错字/用量/标注这类小修改）
   npm run recipe -- archive <recipe_id> --reason "原因"  归档菜谱
   npm run recipe -- rebuild-index           重建派生索引
 
@@ -57,6 +60,24 @@ function main(): void {
         if (r.allergenFixes.length) {
           console.log(`过敏原复核补充: ${r.allergenFixes.join(", ")}`);
         }
+        return;
+      }
+      case "revise": {
+        const [id, versionStr, sourceFile] = rest;
+        const version = Number(versionStr);
+        if (!id || !Number.isInteger(version) || !sourceFile || !rest.includes("--minor-edit")) {
+          throw new ToolError(
+            "INVALID_ARGUMENT",
+            "用法: revise <recipe_id> <version> <source.md> --minor-edit",
+          );
+        }
+        const catalog = new CatalogIndex(repo.loadCatalog());
+        const r = reviseInPlace(repo, catalog, id, version, sourceFile);
+        console.log(`已原地修订: ${r.revisedPath}（版本未变，仍是 v${r.version}）`);
+        if (r.allergenFixes.length) {
+          console.log(`过敏原复核补充: ${r.allergenFixes.join(", ")}`);
+        }
+        console.log("提醒：按 AGENTS.md 要求补一条 cowork/ 记录。");
         return;
       }
       case "archive": {

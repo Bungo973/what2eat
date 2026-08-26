@@ -3,6 +3,7 @@ schema_version: 1
 recipe_id: kebab-case-id
 version: 1
 status: draft
+dish_role: protein # protein | vegetable | soup | staple | cold_dish | mixed | other（可省略字段本身，不确定归哪类就不填；荤素难分优先 mixed）
 name: 菜名（≤30字）
 summary: 一句话摘要，帮助检索命中（≤200字）
 servings: 2
@@ -26,7 +27,7 @@ ingredients:
     preparation: 切法或预处理（可省略）
     role: primary # primary | supporting | seasoning | garnish | cooking_medium（可省略，不确定就不填，不要瞎猜）
     optional: false # 能否整体省略（可省略字段本身，不确定就不填）
-    defines_dish: false # 换掉/去掉后是否就变成另一道菜了（可省略字段本身，不确定就不填；true 时换菜应通过 relations/ 的 variant_of 表达，不是这里的 substitutions）
+    defines_dish: false # 换掉/去掉后是否就变成另一道菜了（可省略字段本身，不确定就不填；true 时换菜走整道菜按 dish_role 检索出的候选，不是这里的 substitutions）
 source:
   name: 自有菜谱
   url: null

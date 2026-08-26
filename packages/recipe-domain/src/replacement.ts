@@ -66,9 +66,11 @@ export function findReplacements(
           : "已发布且适用于当前菜谱的替换规则",
     }));
 
+  const warnings: Warning[] = [];
   const candidates = search.search({
     meal_types: base.meta.meal_types,
     exclude_ingredients: [...unavailable],
+    ...(base.meta.dish_role ? { dish_role: base.meta.dish_role } : {}),
     ...(input.exclude_allergens ? { exclude_allergens: input.exclude_allergens } : {}),
     ...(input.dietary_constraints ? { dietary_constraints: input.dietary_constraints } : {}),
     ...(input.max_total_minutes !== undefined
@@ -77,46 +79,16 @@ export function findReplacements(
     ...(input.equipment ? { equipment: input.equipment } : {}),
     limit: 50,
   }).items;
-  const byId = new Map(candidates.map((item) => [item.recipe_id, item]));
-  const explicit: Array<{
-    recipe_id: string;
-    version: number;
-    name: string;
-    total_minutes: number;
-    relation_type: "variant_of" | "alternative_to";
-    reason: string;
-    shared_ingredient_count: number;
-    allergens: string[];
-  }> = [];
-  for (const relation of repo.listPublishedRecipeRelations()) {
-    if (relation.type !== "variant_of" && relation.type !== "alternative_to") continue;
-    if (
-      relation.conditions?.meal_types?.length &&
-      !relation.conditions.meal_types.some((mealType) => base.meta.meal_types.includes(mealType))
-    ) {
-      continue;
-    }
-    let target: string | null = null;
-    if (relation.source_recipe_id === base.meta.recipe_id) target = relation.target_recipe_id;
-    else if (relation.target_recipe_id === base.meta.recipe_id) target = relation.source_recipe_id;
-    if (!target || target === base.meta.recipe_id) continue;
-    const item = byId.get(target);
-    if (!item) continue;
-    explicit.push({
-      recipe_id: item.recipe_id,
-      version: item.version,
-      name: item.name,
-      total_minutes: item.total_minutes,
-      relation_type: relation.type,
-      reason: relation.reason,
-      shared_ingredient_count: sharedCount(baseIngredientIds, item.core_ingredients.map((i) => i.id)),
-      allergens: item.allergens,
+  if (!base.meta.dish_role) {
+    warnings.push({
+      code: "NO_DISH_ROLE_ON_BASE",
+      message: "该菜谱未标注 dish_role，整菜候选未按分类过滤，结果可能包含不同类型的菜",
+      subject: base.meta.recipe_id,
     });
   }
 
-  const explicitIds = new Set(explicit.map((item) => item.recipe_id));
   const derived = candidates
-    .filter((item) => item.recipe_id !== base.meta.recipe_id && !explicitIds.has(item.recipe_id))
+    .filter((item) => item.recipe_id !== base.meta.recipe_id)
     .map((item) => ({
       recipe_id: item.recipe_id,
       version: item.version,
@@ -134,12 +106,11 @@ export function findReplacements(
       return Math.abs(a.total_minutes - totalMinutes(base)) - Math.abs(b.total_minutes - totalMinutes(base));
     });
   const limit = input.limit ?? 8;
-  const recipeAlternatives = [...explicit, ...derived].slice(0, limit);
-  const warnings: Warning[] = [];
-  if (substitutions.length === 0 && explicit.length === 0) {
+  const recipeAlternatives = derived.slice(0, limit);
+  if (substitutions.length === 0) {
     warnings.push({
       code: "NO_CURATED_REPLACEMENT",
-      message: "没有适用于当前条件的已发布替换规则或人工菜谱关系，整菜候选来自确定性过滤",
+      message: "没有适用于当前条件的已发布替换规则；整菜候选来自 dish_role 的确定性过滤",
       subject: base.meta.recipe_id,
     });
   }

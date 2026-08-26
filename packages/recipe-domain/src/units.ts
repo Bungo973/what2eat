@@ -1,4 +1,4 @@
-import type { BaseUnit, CatalogIngredient, IngredientUnit } from "./types.ts";
+import type { BaseUnit, CatalogIngredient, IngredientRole, IngredientUnit } from "./types.ts";
 
 /** 所有质量/体积单位的通用换算（精确，不近似）。 */
 const UNIVERSAL_TO_BASE: Partial<Record<IngredientUnit, { base: BaseUnit; factor: number }>> = {
@@ -79,4 +79,14 @@ export function fromBaseUnit(
 
 export function round2(n: number): number {
   return Math.round(n * 100) / 100;
+}
+
+const DAMPENED_ROLES = new Set<IngredientRole>(["seasoning", "garnish", "cooking_medium"]);
+
+/**
+ * 五折缩放：seasoning/garnish/cooking_medium 按半强度跟随份数变化（现实里加菜不会等比例加油盐），
+ * 其余角色（含缺失 role，向后兼容）保持线性缩放。
+ */
+export function dampedScale(role: IngredientRole | undefined, rawScale: number): number {
+  return role && DAMPENED_ROLES.has(role) ? 1 + (rawScale - 1) * 0.5 : rawScale;
 }

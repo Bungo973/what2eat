@@ -53,13 +53,12 @@ describe("specs 契约自检", () => {
       "ingredient-catalog.schema.json",
       "benchmark-prices.schema.json",
       "substitution.schema.json",
-      "recipe-relation.schema.json",
     ];
     expect([...schemas.keys()].sort()).toEqual([...expected].sort());
   });
 
   it("所有 schema 均可被 ajv 编译", () => {
-    expect(schemas.size).toBe(23);
+    expect(schemas.size).toBe(22);
     for (const [file, validate] of schemas) {
       expect(typeof validate, `${file} 应编译为校验函数`).toBe("function");
     }
@@ -159,10 +158,39 @@ describe("specs 契约自检", () => {
     expect(validate(withInvalidRole)).toBe(false);
   });
 
+  it("菜谱 frontmatter 契约：dish_role 为可选枚举字段", () => {
+    const validate = schemas.get("recipe-frontmatter.schema.json")!;
+    const base = {
+      schema_version: 1,
+      recipe_id: "tomato-eggs",
+      version: 1,
+      status: "published",
+      name: "番茄炒蛋",
+      summary: "十五分钟完成的家常番茄炒蛋",
+      servings: 2,
+      prep_minutes: 5,
+      cook_minutes: 10,
+      meal_types: ["lunch", "dinner"],
+      difficulty: "easy",
+      equipment: ["wok"],
+      tags: ["quick"],
+      dietary_labels: ["vegetarian"],
+      allergens: ["egg"],
+      ingredients: [{ id: "tomato", name: "番茄", quantity: 300, unit: "g" }],
+      source: { name: "自有菜谱", url: null },
+      published_at: "2026-08-23",
+    };
+    expect(validate({ ...base, dish_role: "protein" }), JSON.stringify(validate.errors)).toBe(true);
+    expect(validate(base), JSON.stringify(validate.errors)).toBe(true);
+    expect(validate({ ...base, dish_role: "staple-ish" })).toBe(false);
+  });
+
   it("search_recipes 输入：拒绝未知字段与超界 limit", () => {
     const validate = schemas.get("search-recipes.input.schema.json")!;
     expect(validate({ query: "番茄", limit: 10 })).toBe(true);
     expect(validate({ include_ingredients: ["西红柿"] })).toBe(true);
+    expect(validate({ dish_role: "vegetable" })).toBe(true);
+    expect(validate({ dish_role: "dessert" })).toBe(false);
     expect(validate({ query: "番茄", limit: 999 })).toBe(false);
     expect(validate({ querry: "typo" })).toBe(false);
   });
@@ -237,42 +265,26 @@ describe("specs 契约自检", () => {
     ).toBe(true);
   });
 
-  it("替换与关系知识契约接受可追溯的发布文档", () => {
+  it("替换知识契约接受可追溯的发布文档（简化后只保留真正换食材的 replace 规则）", () => {
     const substitution = schemas.get("substitution.schema.json")!;
     expect(
       substitution({
         schema_version: 1,
-        substitution_id: "tomato-eggs-scallion-omit",
+        substitution_id: "braised-pork-pork-belly-to-chicken-thigh",
         version: 1,
         status: "published",
-        from_ingredient: "scallion",
-        to_ingredient: null,
-        mode: "omit",
-        valid_context: { roles: ["garnish"], techniques: ["stir-fry"], recipe_ids: ["tomato-eggs"] },
-        ratio: null,
-        step_changes: ["省略撒葱花。"],
+        from_ingredient: "pork_belly",
+        to_ingredient: "chicken_thigh",
+        mode: "replace",
+        valid_context: { roles: ["primary"], techniques: ["braise"], recipe_ids: ["braised-pork"] },
+        ratio: { factor: 1, notes: "按同等重量替换" },
+        step_changes: ["五花肉改为鸡腿肉，其余步骤与火候不变。"],
         allergen_changes: { add: [], remove: [] },
-        effects: { flavor: "葱香减弱", texture: "不变", time_delta_minutes: 0 },
-        evidence: { type: "recipe_source", source: "recipes/tomato-eggs/番茄炒蛋-v1.md" },
+        effects: { flavor: "油脂感降低", texture: "更紧实", time_delta_minutes: -5 },
+        evidence: { type: "maintainer_review", source: null },
         published_at: "2026-08-24",
       }),
       JSON.stringify(substitution.errors),
-    ).toBe(true);
-
-    const relation = schemas.get("recipe-relation.schema.json")!;
-    expect(
-      relation({
-        schema_version: 1,
-        relation_id: "tomato-eggs-garlic-broccoli-pair",
-        version: 1,
-        status: "published",
-        type: "pairs_with",
-        source_recipe_id: "tomato-eggs",
-        target_recipe_id: "garlic-broccoli",
-        reason: "蛋类主菜搭配快手蔬菜。",
-        published_at: "2026-08-24",
-      }),
-      JSON.stringify(relation.errors),
     ).toBe(true);
   });
 });

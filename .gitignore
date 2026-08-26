@@ -5,3 +5,4 @@ dist/
 .env
 .env.*
 .zcode/
+DEPLOYMENT-NOTES.md

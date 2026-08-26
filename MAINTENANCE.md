@@ -15,14 +15,14 @@
 | 新菜谱本身（哪道菜、怎么做） | 这是你实际做过或想收录的菜，AI 不能凭空编 |
 | "这个食材能不能省/换"的真实口味判断 | AI 能起草替换规则草稿，但"换了以后好不好吃"只有你试过才知道 |
 | "换了算不算另一道菜"（`defines_dish`） | 同上，是口味/身份判断，不是数据推导 |
-| 两道菜适不适合搭配、是不是同一道菜的变体 | 同上 |
+| 这道菜该归成 `dish_role` 里的哪一类（尤其蛋类、豆腐类这种荤素界限不清楚的） | 同上，是"这道菜在一餐里通常算主菜还是配菜"的经验判断 |
 | 过敏原、忌口、预算等约束的变化 | 这是你和家人的真实情况 |
 | 对 AI 起草内容的最终确认 | 发布前的最后一道关，见下方"常见维护场景" |
 | 有主观取舍、没有标准答案的产品决定 | 例如之前"标题字体要不要牺牲离线能力换 Google Fonts"这类问题，AI 会给推荐但由你拍板 |
 
 ## AI 能自主完成的
 
-- 从菜谱正文/你提供的描述起草 `role`/`optional`/`defines_dish`、替换规则、菜谱关系，走 `create-draft` → `publish` 流程（不直接改已发布版本）。
+- 从菜谱正文/你提供的描述起草 `role`/`optional`/`defines_dish`/`dish_role`、替换规则（`substitutions/`，只用于真正换食材），走 `create-draft` → `publish` 流程；错字/用量这类小改可以用 `revise --minor-edit` 原地修订，不升版本（见 `AGENTS.md`）。
 - 补食材目录条目（单位换算、过敏原标签），但价格查询词等涉及真实市场数据源的部分需要你或后续核价确认。
 - 跑 `npm run recipe -- validate`、`npm test`、`npm run typecheck`、`npm run skill:build`/`skill:check`，保证改动不破坏契约。
 - 同步 `specs/behavior/*.md` → `skills/meal-planning/references/*.md`。
@@ -34,9 +34,10 @@
 | 场景 | 你要做的 | AI 会做的 | 涉及文件 |
 | --- | --- | --- | --- |
 | 新增一道菜 | 提供菜谱内容；AI 起草后确认能不能吃、步骤对不对 | 起草 frontmatter（含 `role`/`optional`/`defines_dish`）、走发布流程、跑 `validate` | `knowledge/menu/recipes/<id>/` |
-| 改已发布菜谱的内容 | 说明要改什么 | `create-draft` 出新版本、改动、发布；**不直接改旧版本**（已发布不可变） | 同上 |
-| 遇到"这个食材没有/不想吃，能不能做"但知识库没覆盖 | 试过之后告诉 AI 效果如何 | 起草 `substitution` 规则草稿，你确认后发布 | `knowledge/menu/substitutions/` |
-| 想让两道菜产生"变体/搭配/吃剩了怎么用"的关系 | 确认关系是否成立 | 起草 `recipe-relation`，你确认后发布 | `knowledge/menu/relations/` |
+| 改已发布菜谱的内容（实质变化，比如换身份食材、改做法） | 说明要改什么 | `create-draft` 出新版本、改动、发布；**不直接改旧版本**（已发布不可变） | 同上 |
+| 改已发布菜谱的小问题（错字、用量、补标注） | 说明要改什么 | `revise --minor-edit` 原地修订，不升版本 | 同上 |
+| 遇到"这个食材没有/不想吃，能不能做"但知识库没覆盖 | 试过之后告诉 AI 效果如何；单纯"能不能省略"直接告诉 AI 结论 | 能省略：直接改菜谱自己的 `optional`/`notes`；真要换成另一种食材：起草 `substitution`（`mode: replace`）规则草稿，你确认后发布 | `knowledge/menu/substitutions/` 或对应菜谱文件 |
+| 想让两道菜能互相当整菜候选、或凑进同一餐 | 确认这道菜该归哪个 `dish_role` | 给两道菜都标好 `dish_role`，配餐和整菜替代由 `find_replacements`/`search_recipes` 实时检索，不需要建关系文件 | 对应菜谱文件的 frontmatter |
 | 出现目录里没有的新食材 | 无（除非价格来源有特殊情况） | 补目录条目（换算、过敏原、价格查询词） | `knowledge/menu/ingredients/ingredients.md` |
 | 给某个 MCP 工具新增字段 | 说清楚这个字段要干什么 | 同步改四处：`specs/tools/*.schema.json` → 对应 TS 类型/实现 → `specs/behavior/*.md`（如果影响表达）→ 测试；这是本次加 `optional` 字段时走的模式，以后照做 | 视工具而定 |
 | 想调 HTML 视觉/文案 | 给方向或反馈（可以像上次一样来回看预览） | 改 `packages/recipe-domain/src/html.ts`，跑测试 | `packages/recipe-domain/src/html.ts` |
@@ -44,7 +45,7 @@
 
 ## 何时重新评估已搁置的方向（PRD V0.5）
 
-- **设计方向 2**（通用角色规则 + 置信度分层）：现在只有 2 篇菜谱有角色标注，样本太少。积累了几个"如果有通用规则就能答上"的真实场景后再评估，别在没有真实场景前先做。
+- **设计方向 2**（通用角色规则 + 置信度分层）：全部 22 篇菜谱现在都已经有 `role`/`optional`/`defines_dish` 标注，样本不再是当初"只有 2 篇"的瓶颈；`dish_role` + 实时检索（取代 `relations/` 的人工两两关系）本身就是这个方向的一次落地。`substitutions/` 里 `valid_context.roles` 仍未真正用于按角色匹配通用规则（现在只按 `recipe_ids` 白名单生效，见 `packages/recipe-domain/src/replacement.ts` 里的说明）——积累几个"如果 `roles` 能生效就能答上"的真实场景后，可以评估要不要把这条也打通。
 - **设计方向 3**（食材功能分组）：明确搁置。菜谱规模从 16 道显著增长（比如到上百道）、手写替换规则的维护成本变得不可控时才重新考虑。
 - **设计方向 4**（菜谱关系结构化维度 `balance_dimensions`）：风险收益独立，随时可以单独评审，不依赖方向 2/3。
 

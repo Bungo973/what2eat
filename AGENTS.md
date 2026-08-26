@@ -86,7 +86,7 @@ cowork/YYYYMMDD-HHmm-<agent-id>-<short-topic>.md
 
 - 工具保持窄、可组合、可验证；不得新增 `generate_plan(user_message)` 一类包办 Agent 推理的工具。
 - 公共查询默认只返回 `published` 菜谱；进入方案的菜谱必须可追溯到 `recipe_id` 与确切 `version`。
-- 已发布版本不可原地覆盖。归档不删除历史版本。
+- 已发布版本默认不可原地覆盖；归档不删除历史版本。唯一的窄口子是 `reviseInPlace`（CLI: `npm run recipe -- revise <recipe_id> <version> <source.md> --minor-edit`）——只允许覆盖**当前生效版本**的内容，不升版本，无视源文件里的 `recipe_id`/`version`/`status`/`published_at`（强制沿用当前记录）且拒绝改名；旧版本与归档版本仍然真正不可变。这个口子只用于真正的小改（错字、用量、补标注），内容实质变化（换掉身份食材、做法本质改变）必须走正常升版本。
 - 过敏原、忌口、状态和权限属于确定性硬过滤，不得被语义相似度或软排序绕过。
 - 数量/单位无法可靠换算时保留原值并返回结构化警告，不伪造精确值；价格未知时返回未知，不以零代替。
 - 公共只读能力与维护者写入能力分离；凭证不得写入代码、Skill、菜谱或日志。

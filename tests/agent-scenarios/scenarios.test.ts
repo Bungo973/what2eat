@@ -232,24 +232,26 @@ describe("场景 2：五天晚餐周期规划（PRD 场景 5/6/7）", () => {
 });
 
 describe("场景 3：局部换菜（PRD 场景 8）", () => {
-  it("食材买不到时优先返回有正文依据的省略规则和整菜候选", async () => {
+  it("食材买不到且没有已发布替换规则时，给出确定性整菜候选而不是假装有依据的省略建议", async () => {
+    // 换菜省略类替换规则已简化为菜谱自身的 optional/notes 字段（不再是独立 substitutions/ 文件）；
+    // find_replacements 现在应该诚实地报告"没有已发布替换规则"，整菜候选改由同 dish_role 的确定性检索给出。
+    // 用"白糖"而不是"大葱"：番茄炒蛋现在归 dish_role: mixed，同分类仅有的另外两篇（麻婆豆腐、
+    // 胡萝卜炒鸡蛋）恰好都含大葱这个点缀食材，排除大葱会把整个同分类候选池清空——这本身是
+    // mixed 这种小分类的真实局限，但不是这条用例想验证的点，换一个不冲突的缺货食材。
     const result = await call<{
       substitutions: Array<{ substitution_id: string; from_ingredient: string; mode: string }>;
       recipe_alternatives: Array<{ recipe_id: string; relation_type: string }>;
+      warnings: Array<{ code: string }>;
     }>("find_replacements", {
       recipe_id: "tomato-eggs",
       reason: "unavailable",
-      unavailable_ingredients: ["大葱"],
+      unavailable_ingredients: ["白糖"],
       limit: 5,
     });
-    expect(result.substitutions).toContainEqual(
-      expect.objectContaining({
-        substitution_id: "tomato-eggs-scallion-omit",
-        from_ingredient: "scallion",
-        mode: "omit",
-      }),
-    );
+    expect(result.substitutions).toEqual([]);
+    expect(result.warnings.some((w) => w.code === "NO_CURATED_REPLACEMENT")).toBe(true);
     expect(result.recipe_alternatives.length).toBeGreaterThan(0);
+    expect(result.recipe_alternatives.every((a) => a.relation_type === "derived")).toBe(true);
   });
 
   it("把已确定结果渲染为包含菜单、菜谱、采购和价格表的 HTML", async () => {

@@ -12,10 +12,10 @@ specs/
   tools/            工具输入输出 JSON Schema
   knowledge/        菜谱、食材和基准价格 schema
 packages/
-  recipe-domain/    菜谱解析、校验、版本状态机、关系、汇总、替换与 HTML 渲染
+  recipe-domain/    菜谱解析、校验、版本状态机、检索、汇总、替换与 HTML 渲染
   price-providers/  价格 provider（新发地/PFSC 省级市场聚合/全国日报/基准价）与缓存降级
 mcp/server/   远程 MCP 服务（Streamable HTTP + Bearer 鉴权）
-knowledge/menu/ Obsidian Vault：recipes/、drafts/、ingredients/、substitutions/、relations/、prices/
+knowledge/menu/ Obsidian Vault：recipes/、drafts/、ingredients/、substitutions/、prices/
 tests/        契约、知识库、Skill 与 Agent 场景测试
 cowork/       多 Agent 协作变更记录
 MAINTENANCE.md  维护清单：哪些信息需要用户提供、哪些常规维护场景 AI 可自主处理

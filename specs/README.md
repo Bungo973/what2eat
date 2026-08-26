@@ -32,9 +32,10 @@
 - `recipe-frontmatter.schema.json`：菜谱文档 YAML frontmatter 契约（PRD §9.2/9.3）。
 - `ingredient-catalog.schema.json`：标准食材目录契约（PRD §9.4）。
 - `benchmark-prices.schema.json`：地区基准价格文档契约（PRD §10）。
-- `substitution.schema.json`：带上下文的食材替换/省略规则契约。
-- `recipe-relation.schema.json`：菜谱替代、搭配、变体与余料关系契约。
+- `substitution.schema.json`：带上下文的食材替换规则契约，只用于真正换成另一种食材（`mode: replace`）；单纯省略走 `recipe-frontmatter.schema.json` 里的 `ingredients[].optional`/`notes`。
 - `obsidian-knowledge-base-sketch.md`：Obsidian 知识库设计草图、实体关系和试点迁移方法。
+
+菜谱之间的搭配/整菜替代不再有独立 schema——改用 `recipe-frontmatter.schema.json` 里的菜谱级 `dish_role` 字段（`protein`/`vegetable`/`soup`/`staple`/`cold_dish`），由 `find_replacements`/`search_recipes` 在查询时按分类实时匹配，不是预先声明的关系文档。
 
 ## 约束
 

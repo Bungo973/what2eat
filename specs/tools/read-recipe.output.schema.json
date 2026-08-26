@@ -16,6 +16,7 @@
       "properties": {
         "name": { "type": "string" },
         "summary": { "type": "string" },
+        "dish_role": { "enum": ["protein", "vegetable", "soup", "staple", "cold_dish", "mixed", "other"] },
         "servings": { "type": "integer", "minimum": 1 },
         "prep_minutes": { "type": "integer", "minimum": 0 },
         "cook_minutes": { "type": "integer", "minimum": 0 },

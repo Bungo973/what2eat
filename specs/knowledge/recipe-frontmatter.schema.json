@@ -28,6 +28,10 @@
     "recipe_id": { "type": "string", "pattern": "^[a-z0-9][a-z0-9-]*$", "maxLength": 64 },
     "version": { "type": "integer", "minimum": 1 },
     "status": { "enum": ["draft", "published", "archived"] },
+    "dish_role": {
+      "enum": ["protein", "vegetable", "soup", "staple", "cold_dish", "mixed", "other"],
+      "description": "这道菜在一餐里的角色，用于配餐和整菜候选的实时检索匹配；mixed 用于荤素难分的菜（如蛋类/豆腐类主料但少肉或无肉），other 用于确实不属于前几类的菜；缺失表示尚未标注，不参与 dish_role 过滤"
+    },
     "name": { "type": "string", "minLength": 1, "maxLength": 60 },
     "summary": { "type": "string", "minLength": 1, "maxLength": 200 },
     "servings": { "type": "integer", "minimum": 1, "maximum": 20 },

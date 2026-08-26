@@ -92,6 +92,7 @@ export function registerTools(server: McpServer, env: ToolEnv): void {
         max_total_minutes: z.number().int().min(1).max(1200).optional(),
         equipment: z.array(z.string()).max(10).optional(),
         difficulty: z.enum(["easy", "medium", "hard"]).optional(),
+        dish_role: z.enum(["protein", "vegetable", "soup", "staple", "cold_dish", "mixed", "other"]).optional(),
         limit: z.number().int().min(1).max(50).optional(),
         cursor: z.string().max(256).optional(),
       },

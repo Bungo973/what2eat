@@ -29,11 +29,15 @@ export interface IngredientLine {
   defines_dish?: boolean;
 }
 
+export type DishRole = "protein" | "vegetable" | "soup" | "staple" | "cold_dish" | "mixed" | "other";
+
 export interface RecipeMeta {
   schema_version: 1;
   recipe_id: string;
   version: number;
   status: RecipeStatus;
+  /** 这道菜在一餐里的角色；缺失表示尚未标注，不参与 dish_role 过滤 */
+  dish_role?: DishRole;
   name: string;
   summary: string;
   servings: number;
@@ -117,19 +121,6 @@ export interface SubstitutionRule {
   };
   published_at?: string;
   notes?: string;
-}
-
-export interface RecipeRelation {
-  schema_version: 1;
-  relation_id: string;
-  version: number;
-  status: RecipeStatus;
-  type: "variant_of" | "alternative_to" | "pairs_with" | "uses_leftover_from";
-  source_recipe_id: string;
-  target_recipe_id: string;
-  reason: string;
-  conditions?: { meal_types?: MealType[] };
-  published_at?: string;
 }
 
 export interface Warning {
