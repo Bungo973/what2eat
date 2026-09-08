@@ -1,0 +1,16 @@
+[Unit]
+Description=what2eat 自动部署（拉取 release 分支并重启服务）
+Documentation=https://github.com/Bungo973/what2eat/blob/main/scripts/deploy/README.md
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=ubuntu
+Group=ubuntu
+WorkingDirectory=/opt/what2eat
+# git 走 SSH，需要 ubuntu 自己家目录下的私钥和 known_hosts
+Environment=HOME=/home/ubuntu
+ExecStart=/bin/bash /opt/what2eat/scripts/deploy/deploy.sh
+# npm ci 可能比较慢，给足时间
+TimeoutStartSec=900

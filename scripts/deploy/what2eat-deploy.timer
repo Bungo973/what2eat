@@ -1,0 +1,13 @@
+[Unit]
+Description=每分钟检查一次 what2eat 是否有新的、已通过测试的提交
+
+[Timer]
+# 开机后先等 2 分钟，让网络和 what2eat 服务本身先起来
+OnBootSec=2min
+# 上一次跑完后隔 60 秒再跑（oneshot 还没跑完时不会重叠触发）
+OnUnitActiveSec=60s
+AccuracySec=10s
+Unit=what2eat-deploy.service
+
+[Install]
+WantedBy=timers.target

@@ -1,0 +1,49 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+# 同一分支上连续推送时，只保留最新一次跑完，避免 release 分支被旧提交覆盖
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: 测试
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          # 保持和 VPS 上 `node -v` 一致，避免线上跑的 node 版本没被测到
+          node-version: '22'
+          cache: npm
+
+      - run: npm ci
+      - run: npm run build   # skill 引用同步检查 + 各 workspace typecheck
+      - run: npm test
+
+  promote:
+    name: 标记为可部署
+    needs: test
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      # VPS 只跟 release 分支。测试通过后把这个 commit 推到 release，
+      # 服务器那边就不需要任何 GitHub token 去查 CI 状态了：
+      # 能出现在 release 上的提交，按定义就是测试跑绿了的。
+      - name: 把通过测试的提交推到 release 分支
+        run: git push --force origin ${{ github.sha }}:refs/heads/release
