@@ -41,6 +41,7 @@
 | 出现目录里没有的新食材 | 无（除非价格来源有特殊情况） | 补目录条目（换算、过敏原、价格查询词） | `knowledge/menu/ingredients/ingredients.md` |
 | 给某个 MCP 工具新增字段 | 说清楚这个字段要干什么 | 同步改四处：`specs/tools/*.schema.json` → 对应 TS 类型/实现 → `specs/behavior/*.md`（如果影响表达）→ 测试；这是本次加 `optional` 字段时走的模式，以后照做 | 视工具而定 |
 | 想调 HTML 视觉/文案 | 给方向或反馈（可以像上次一样来回看预览） | 改 `packages/recipe-domain/src/html.ts`，跑测试 | `packages/recipe-domain/src/html.ts` |
+| `specs/behavior/*.md` 有实质性改动，想让分发出去的 `skill-prod` 也拿到 | 确认要不要现在就发新版 | `skill-prod/` **不**跟 `specs/behavior/*.md` 自动同步（`scripts/build-skill.mjs` 只认 `skills/meal-planning/references/`），需要手动重新走一遍复制 + 核对 what2eat 相关措辞的流程；容易漏，动 `specs/behavior/` 时留意一下要不要顺手做 | `skill-prod/meal-planning/references/` |
 | 积累了几个"设计方向 2 本能解决但现在解决不了"的真实换菜场景 | 描述这些场景 | 评估是否启动 PRD V0.5 设计方向 2（通用规则 + 置信度分层） | 见下 |
 
 ## 何时重新评估已搁置的方向（PRD V0.5）

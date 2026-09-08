@@ -7,6 +7,8 @@
 ```text
 skills/
   meal-planning/    通用 Skill 与本地 MCP 运行说明
+skill-prod/
+  meal-planning/    可独立分发的正式版 Skill，与本仓库解耦；不随 specs/behavior/*.md 自动同步，发布新版本时手动更新
 specs/
   behavior/         平台无关行为与用户输出契约
   tools/            工具输入输出 JSON Schema
@@ -58,7 +60,7 @@ $env:WHAT2EAT_MCP_TOKEN = "<token>"; $env:PORT = "3000"; npm start
 
 `quote_ingredient_prices` 的 `region` 可省略，缺省为全国参考；给出省市时会优先聚合同省多个 PFSC 批发市场报价。省级缺价时可回退全国，最后再使用明确标记的跨地区维护者基准价。可通过 `allow_national_fallback: false` 禁止全部跨地区回退。每条报价明确返回实际地区、地区层级、市场数、价格口径和预算可用性。
 
-`find_replacements` 读取 Vault 中已发布的上下文替换规则和菜谱关系；`render_meal_plan_html` 把已经确定的菜单、菜谱、采购和价格渲染成自包含 HTML，不参与规划或计算。
+`find_replacements` 读取 Vault 中已发布的上下文替换规则，整菜候选按菜谱的 `dish_role` 分类实时检索得出（不再依赖人工声明的菜谱关系）；`render_meal_plan_html` 把已经确定的菜单、菜谱、采购和价格渲染成自包含 HTML，不参与规划或计算。
 
 ## 维护者 CLI
 
@@ -66,6 +68,7 @@ $env:WHAT2EAT_MCP_TOKEN = "<token>"; $env:PORT = "3000"; npm start
 npm run recipe -- validate                 # 校验知识库
 npm run recipe -- create-draft <file.md>   # 从源文档创建下一版草稿
 npm run recipe -- publish <recipe_id> <version>   # 发布（不可变，过敏原自动复核）
+npm run recipe -- revise <recipe_id> <version> <source.md> --minor-edit   # 原地小改当前生效版本，不升版本
 npm run recipe -- archive <recipe_id> --reason "原因"
 npm run recipe -- rebuild-index
 ```
