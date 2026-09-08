@@ -24,8 +24,8 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          # 保持和 VPS 上 `node -v` 一致，避免线上跑的 node 版本没被测到
-          node-version: '22'
+          # 保持和 VPS 上 `node -v` 一致（当前 v24.18.1），避免线上跑的 node 版本没被测到
+          node-version: '24'
           cache: npm
 
       - run: npm ci
