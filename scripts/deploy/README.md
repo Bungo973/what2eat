@@ -90,4 +90,6 @@ sudo systemctl restart what2eat
 - **依赖只在 `package.json` / `package-lock.json` 变化时才重装**（`npm ci`），平时改菜谱、改文档的提交部署很快。
 - **失败会自动回滚**：`npm ci` 失败、`systemctl restart` 失败、或者重启后 15 秒内 `http://127.0.0.1:3000/health` 没通，都会切回上一个提交、重装依赖、再重启。如果回滚后依然不健康，脚本会在日志里明说需要人工介入。
 - **回滚之后不会反复重试**：坏提交的 SHA 会记在 `~/.what2eat-deploy-failed`，只要 `release` 还指着它，后续每分钟的检查就直接跳过（否则服务会被每 60 秒重启一次）。这期间 `systemctl status what2eat-deploy` 一直是 failed 状态。修好代码推个新提交，`release` 一变就自动恢复；想在不推新提交的情况下强行重试，`rm ~/.what2eat-deploy-failed` 即可。
-- **CI 里的 Node 版本**（`.github/workflows/ci.yml` 里的 `node-version`）应该和 VPS 上 `node -v` 保持一致，否则可能测不到线上实际会踩的版本差异。
+- **CI 里的 Node 版本**（`.github/workflows/ci.yml` 里的 `node-version`）应该和 VPS 上 `node -v` 保持一致（当前两边都是 24），否则可能测不到线上实际会踩的版本差异。
+- **每分钟轮询不等于每分钟重启**：绝大多数轮次只是一次 `git fetch`（几秒，不碰服务），`release` 没变就静默退出。重启只发生在真的有新提交时，也就是推代码的频率。
+- **一次重启大约中断几秒**：`SIGTERM` 后服务会先让在途请求跑完（最多等 3 秒）再退出，新进程起来监听 3000 前 nginx 会短暂返回 502。服务端不存跨请求会话，重启不会让谁的会话断掉。
