@@ -6,3 +6,6 @@ dist/
 .env.*
 .zcode/
 DEPLOYMENT-NOTES.md
+
+# Claudian 插件的对话记录，属于本地状态，不是知识库内容
+knowledge/.claudian/
