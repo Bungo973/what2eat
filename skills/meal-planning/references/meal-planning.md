@@ -66,9 +66,9 @@
 
 | 目的 | 工具与规则 |
 | --- | --- |
-| 一般发现或结构化过滤 | `search_recipes`；在输入中传递全部已知硬约束 |
+| 一般发现或结构化过滤 | `search_recipes`；在输入中传递全部已知硬约束。`include_ingredients`/`exclude_ingredients` 按标准食材 ID 或知识库登记的别名精确匹配，匹配不上时**不报错、直接当作零命中处理**；优先使用候选结果 `core_ingredients` 或已读取菜谱 `ingredients[].id`/`name` 中出现过的原词，不要凭翻译或猜测拼写去过滤 |
 | 查步骤、处理方法或正文词语 | `grep_recipe_docs`；它只定位候选，不能替代完整读取 |
-| 选定菜谱或展示完整做法 | `read_recipe`；显式保留实际 `recipe_id` 和 `version` |
+| 选定菜谱或展示完整做法 | `read_recipe`；显式保留实际 `recipe_id` 和 `version`。做法步骤**只存在于 `raw_markdown`**（`format` 缺省即为 `both`，默认已包含）；`parsed` 是纯结构化元数据，没有单独的步骤字段，不需要为找步骤额外反复查询 |
 | 汇总采购并扣库存 | `aggregate_shopping_list`；传递每道菜的确切版本、份数和可选日期 |
 | 完整选定结果的默认报价 | `quote_ingredient_prices`；输入来自采购汇总的标准食材与待采购量，地区可省略，保留未知项和证据字段 |
 | 形成或修改餐单 | `validate_meal_plan`；只校验候选方案，不要求工具生成方案 |
@@ -99,7 +99,7 @@
 目标份数必须贯穿读取、采购与校验：
 
 - `read_recipe.servings` 使用用户目标份数；最终食材展示取 `scaled_ingredients`。
-- 最终餐单的读取应包含原始 Markdown 正文或等价的完整步骤字段。搜索摘要不能支撑烹饪做法；读取失败时应改选可完整读取的菜谱，或把结果降级为缺少做法的候选，不能声称已经交付可执行餐单。
+- 最终餐单的读取必须包含 `raw_markdown`（做法步骤唯一的来源，`parsed` 不含独立步骤字段）。搜索摘要不能支撑烹饪做法；读取失败时应改选可完整读取的菜谱，或把结果降级为缺少做法的候选，不能声称已经交付可执行餐单。
 - `aggregate_shopping_list.items[].servings` 与读取和校验使用相同份数。
 - 原始 `parsed.ingredients` 只代表菜谱基准份数；目标份数不同的时候，不得把它与缩放后的 `to_buy` 并列为同一数量。
 - 同一食材若同时展示两种单位，必须来自同一个缩放结果并校验换算关系；无法可靠换算时只保留工具原值与警告。
